@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#4a2a18" />
+<title>Кофе-касса</title>
+<!--
+  Кофе-касса. Версия: APP_VERSION в скрипте.
+  Люди, чашки и закупки в этом файле не хранятся.
+  Они лежат в браузере и в JSONBin, поэтому файл можно заменять.
+-->
+<style>
+  :root {
+    --bg: #f3e2c7; --ink: #2a1810; --card: #fff6e8; --primary: #4a2a18;
+    --cream: #f8ead4; --muted: #7a5640; --line: #d4b896; --roast: #1c120c;
+    --owed: #8f3d2a; --credit: #3f5c3a; --phone: 430px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--roast); color: var(--ink); }
+  body { font-family: "Segoe UI", system-ui, sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  #app { margin: 0 auto; max-width: var(--phone); height: 100dvh; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+  header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--primary); color: var(--cream); }
+  header h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; font-weight: 560; }
+  header p { margin: 0; font-size: 12px; opacity: 0.75; }
+  .brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .mark { width: 36px; height: 36px; border-radius: 10px; background: var(--cream); color: var(--primary); display: grid; place-items: center; font-size: 18px; flex: none; }
+  main { flex: 1; min-height: 0; overflow: auto; padding: 18px 16px 24px; }
+  nav { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--primary); padding-bottom: env(safe-area-inset-bottom); }
+  nav button { border: 0; background: transparent; color: rgba(248, 234, 212, 0.75); min-height: 56px; font-size: 11px; }
+  nav button.on { background: var(--cream); color: var(--primary); }
+  h2 { margin: 0 0 4px; font-family: Georgia, serif; font-size: 1.6rem; font-weight: 560; }
+  h3 { margin: 16px 0 8px; font-size: 15px; }
+  .sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .grow { flex: 1; min-width: 0; }
+  .btn, .btn-ghost { border-radius: 10px; border: 1px solid transparent; padding: 8px 12px; background: var(--primary); color: var(--cream); }
+  .btn-ghost { background: transparent; color: var(--primary); border-color: var(--line); }
+  .sm { padding: 6px 10px; }
+  .field, select, textarea { width: 100%; border: 1px solid var(--line); background: #fffaf3; border-radius: 10px; padding: 8px 10px; }
+  textarea { min-height: 64px; resize: vertical; }
+  .lbl { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  .step { display: flex; align-items: center; gap: 6px; flex: none; }
+  .step button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: #fffaf3; }
+  .step b { min-width: 28px; text-align: center; }
+  .dot { width: 14px; height: 14px; border-radius: 99px; flex: none; }
+  .grid7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .dow { text-align: center; font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .day { border: 1px solid transparent; background: transparent; border-radius: 10px; min-height: 46px; padding: 4px 0; font-size: 13px; }
+  .day.off { opacity: 0.35; }
+  .day.on { background: var(--primary); color: var(--cream); }
+  .day .n { font-size: 10px; }
+  .money-pos { color: var(--credit); }
+  .money-neg { color: var(--owed); }
+  .sheet { position: fixed; inset: 0; background: rgba(28, 18, 12, 0.45); display: flex; justify-content: center; align-items: flex-end; z-index: 20; }
+  .sheet .panel { width: min(100%, var(--phone)); max-height: min(92dvh, 760px); overflow: auto; background: var(--bg); border-radius: 18px 18px 0 0; padding: 16px 16px 24px; }
+  .toast { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); background: var(--roast); color: var(--cream); padding: 8px 12px; border-radius: 999px; font-size: 13px; z-index: 30; max-width: calc(var(--phone) - 32px); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .swatches button { width: 28px; height: 28px; border-radius: 99px; border: 2px solid transparent; }
+  .swatches button.on { border-color: var(--ink); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .split { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+  .help { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .help summary { cursor: pointer; color: var(--primary); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast" hidden></div>
+<script>
+const APP_VERSION = "2026.10.16";
+const COLORS = [["umber","#6b4f3a","умбра"],["olive","#8a6239","олива"],["slate","#5c4030","грифель"],["clay","#7a4e3d","глина"],["pine","#6b5344","хвоя"],["cocoa","#3d281c","какао"],["rust","#8a3f32","ржавчина"],["stone","#a3845c","камень"]];
+const MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+const DOW = ["пн","вт","ср","чт","пт","сб","вс"];
+const TABS = [["balance","Касса"],["cups","Чашки"],["history","История"],["restocks","Закупки"],["settings","Настройки"]];
+const app = document.getElementById("app");
+let state = loadState();
+let sync = loadSync();
+let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null };
+let toastTimer = 0, syncTimer = 0, pulling = false;
+
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => {
+    if (c === "&") return "&" + "amp;";
+    if (c === "<") return "&" + "lt;";
+    if (c === ">") return "&" + "gt;";
+    if (c === '"') return "&" + "quot;";
+    return "&" + "#39;";
+  });
+}
+function todayISO(d = new Date()) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function addDays(iso, n) { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return todayISO(d); }
+function formatDay(iso) { if (!iso) return ""; const [y,m,d] = iso.split("-").map(Number); return d + " " + MONTHS_GEN[m-1] + " " + y; }
+function formatDayShort(iso) { if (!iso) return ""; const [,m,d] = iso.split("-").map(Number); return d + " " + MONTHS_GEN[m-1]; }
+function money(k) { return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format((k || 0) / 100); }
+function moneySigned(k) { if (k > 0) return "+" + money(k); if (k < 0) return "−" + money(Math.abs(k)); return money(0); }
+function cupsWord(n) { const a = Math.abs(n), m10 = a % 10, m100 = a % 100; if (m10 === 1 && m100 !== 11) return n + " чашка"; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return n + " чашки"; return n + " чашек"; }
+function parseMoney(raw) { const t = String(raw ?? "").trim().replace(/\s/g, "").replace(",", "."); if (!t) return 0; const n = Number(t); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : 0; }
+function parseMass(raw) { const t = String(raw ?? "").trim().toLowerCase().replace(/\s/g, "").replace(",", "."); if (!t) return 250; if (t.endsWith("кг") || t.endsWith("kg")) return Math.round(Number(t.replace(/кг|kg/g, "")) * 1000) || 250; const n = Number(t.replace(/г|g/g, "")); return Number.isFinite(n) && n > 0 ? Math.round(n) : 250; }
+function formatMass(g) { if (!g) return "—"; if (g >= 1000 && g % 1000 === 0) return (g / 1000) + " кг"; if (g >= 1000) return String(g / 1000).replace(".", ",") + " кг"; return g + " г"; }
+function rub(k) { return String((k || 0) / 100).replace(".", ","); }
+function colorOf(id) { return (COLORS.find((c) => c[0] === id) || COLORS[0])[1]; }
+function personById(id) { return state.people.find((p) => p.id === id); }
+function nameOf(id) { return personById(id)?.name || "Кто-то"; }
+
+function emptyState() { return { people: [], cups: [], restocks: [], openings: [], updatedAt: "1970-01-01T00:00:00.000Z" }; }
+function normalize(raw) {
+  const s = raw && typeof raw === "object" ? raw : {};
+  const restocks = (Array.isArray(s.restocks) ? s.restocks : []).map((r) => ({
+    id: r.id || uid(), date: r.date || todayISO(), buyerId: r.buyerId || "",
+    packs: (r.packs || []).map((p) => ({ id: p.id || uid(), name: p.name || "Кофе", priceKopecks: Number(p.priceKopecks) || 0, massGrams: Number(p.massGrams) || 250 })),
+    periodsCovered: Math.max(1, Number(r.periodsCovered) || (r.packs || []).length || 1),
+    coverageStart: r.coverageStart || "", splitMode: r.splitMode === "matched" ? "matched" : "pooled", note: r.note || "",
+  }));
+  let openings = Array.isArray(s.openings) ? s.openings : null;
+  if (!openings) openings = restocks.flatMap((r) => r.packs[0] ? [{ id: "open-" + r.id, date: r.date, packId: r.packs[0].id }] : []);
+  return {
+    people: (Array.isArray(s.people) ? s.people : []).map((p) => ({ id: p.id || uid(), name: p.name || "Без имени", color: COLORS.some((c) => c[0] === p.color) ? p.color : "cocoa", archived: Boolean(p.archived) })),
+    cups: (Array.isArray(s.cups) ? s.cups : []).filter((c) => c && c.cups > 0).map((c) => ({ date: c.date, personId: c.personId, cups: Math.max(0, Math.round(Number(c.cups) * 2) / 2) })),
+    restocks, openings: openings.map((o) => ({ id: o.id || uid(), date: o.date, packId: o.packId })),
+    updatedAt: s.updatedAt || "1970-01-01T00:00:00.000Z",
+  };
+}
+function loadState() {
+  try {
+    const own = localStorage.getItem("kofe-kassa-html-v1");
+    if (own) return normalize(JSON.parse(own));
+    const old = localStorage.getItem("coffee-kassa-v2");
+    if (old) { const parsed = JSON.parse(old); return normalize(parsed.state || parsed); }
+  } catch (e) {}
+  return emptyState();
+}
+function loadSync() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("kofe-kassa-sync") || "{}");
+    return { masterKey: raw.masterKey || "", binId: raw.binId || "", password: raw.password || "", autoSync: raw.autoSync !== false, last: raw.last || "" };
+  } catch (e) { return { masterKey: "", binId: "", password: "", autoSync: true, last: "" }; }
+}
+function loadTab() { const t = sessionStorage.getItem("kofe-kassa-tab"); return TABS.some((x) => x[0] === t) ? t : "balance"; }
+function saveLocal() { localStorage.setItem("kofe-kassa-html-v1", JSON.stringify(state)); }
+function saveSync() { localStorage.setItem("kofe-kassa-sync", JSON.stringify(sync)); }
+function touch() { state.updatedAt = new Date().toISOString(); saveLocal(); if (!pulling) scheduleSync(); }
+function toast(text) { const el = document.getElementById("toast"); el.textContent = text; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600); }
+
+function sortRestocks(list) { return [...list].sort((a, b) => a.date === b.date ? a.id.localeCompare(b.id) : a.date < b.date ? -1 : 1); }
+function sortOpenings(list) { return [...list].sort((a, b) => a.date === b.date ? a.id.localeCompare(b.id) : a.date < b.date ? -1 : 1); }
+function totalKopecks(r) { return r.packs.reduce((s, p) => s + (p.priceKopecks || 0), 0); }
+function cupsInRange(cups, start, end) { const map = new Map(); for (const e of cups) { if (e.cups <= 0 || e.date < start || e.date >= end) continue; map.set(e.personId, (map.get(e.personId) || 0) + e.cups); } return map; }
+function earliestCup(cups) { let min = null; for (const e of cups) if (e.cups > 0 && (!min || e.date < min)) min = e.date; return min; }
+function findPack(packId) { for (const r of state.restocks) { const p = r.packs.find((x) => x.id === packId); if (p) return { pack: p, restock: r }; } return null; }
+function unopened() { const opened = new Set(state.openings.map((o) => o.packId)); const rows = []; for (const r of sortRestocks(state.restocks)) for (const p of r.packs) if (!opened.has(p.id)) rows.push({ pack: p, restock: r }); return rows; }
+function lastPackDefaults(name) {
+  const packs = sortRestocks(state.restocks).flatMap((r) => r.packs);
+  if (name && name.trim()) { const needle = name.trim().toLowerCase(); for (let i = packs.length - 1; i >= 0; i--) if (packs[i].name.trim().toLowerCase() === needle) return { name: packs[i].name, priceKopecks: packs[i].priceKopecks, massGrams: packs[i].massGrams || 250 }; }
+  const last = packs.at(-1); return last ? { name: last.name, priceKopecks: last.priceKopecks, massGrams: last.massGrams || 250 } : null;
+}
+function uniqDates(dates) { return [...new Set(dates)].sort(); }
+function computeCoverage(restock) {
+  const end = restock.date;
+  if (restock.coverageStart) { const start = restock.coverageStart < end ? restock.coverageStart : end; return { start, end, periods: start < end ? [{ start, end }] : [] }; }
+  const events = [];
+  if (state.openings.length) { for (const o of sortOpenings(state.openings)) if (o.date < restock.date) events.push(o.date); }
+  else {
+    const before = sortRestocks(state.restocks).filter((r) => r.id !== restock.id && (r.date < restock.date || (r.date === restock.date && r.id < restock.id)));
+    const early = earliestCup(state.cups);
+    if (early && early < restock.date && (before.length === 0 || early < before[0].date)) events.push(early);
+    for (const r of before) events.push(r.date);
+  }
+  events.push(restock.date);
+  const uniq = uniqDates(events); const all = [];
+  for (let i = 0; i < uniq.length - 1; i++) if (uniq[i] < uniq[i + 1]) all.push({ start: uniq[i], end: uniq[i + 1] });
+  const periods = all.slice(-Math.max(1, Math.floor(restock.periodsCovered) || 1));
+  if (!periods.length) return { start: end, end, periods: [] };
+  return { periods, start: periods[0].start, end: periods[periods.length - 1].end };
+}
+function splitByWeights(total, weights) {
+  const result = {};
+  if (!weights.length || !total) { weights.forEach((w) => { result[w.id] = 0; }); return result; }
+  const positive = weights.filter((w) => w.weight > 0);
+  const pool = positive.length ? positive : weights;
+  const sumW = pool.reduce((s, w) => s + w.weight, 0);
+  if (sumW <= 0) {
+    const n = pool.length, base = Math.floor(total / n); let rem = total - base * n;
+    weights.forEach((w) => { result[w.id] = 0; });
+    for (let i = 0; i < n; i++) { const extra = rem > 0 ? 1 : 0; if (rem > 0) rem--; result[pool[i].id] = base + extra; }
+    return result;
+  }
+  const rows = pool.map((w) => { const exact = (total * w.weight) / sumW; const v = Math.floor(exact); return { id: w.id, v, frac: exact - v }; });
+  let remain = total - rows.reduce((s, r) => s + r.v, 0);
+  rows.sort((a, b) => b.frac - a.frac || a.id.localeCompare(b.id));
+  for (let i = 0; i < remain; i++) rows[i % rows.length].v += 1;
+  weights.forEach((w) => { result[w.id] = 0; });
+  rows.forEach((r) => { result[r.id] = r.v; });
+  return result;
+}
+function peopleForSplit(map) {
+  const ids = new Set(map.keys());
+  const listed = state.people.filter((p) => !p.archived || ids.has(p.id) || (map.get(p.id) || 0) > 0);
+  return listed.length ? listed : state.people.filter((p) => !p.archived);
+}
+function allocate(total, map) {
+  const roster = peopleForSplit(map);
+  const totalCups = [...map.values()].reduce((s, n) => s + n, 0);
+  const empty = totalCups <= 0;
+  const split = splitByWeights(total, roster.map((p) => ({ id: p.id, weight: empty ? 1 : (map.get(p.id) || 0) })));
+  return roster.map((p) => ({ personId: p.id, cups: map.get(p.id) || 0, shareKopecks: split[p.id] || 0 }));
+}
+function settle(restock) {
+  const coverage = computeCoverage(restock);
+  const total = totalKopecks(restock);
+  const canMatch = restock.splitMode === "matched" && restock.packs.length > 0 && coverage.periods.length === restock.packs.length;
+  if (canMatch) {
+    const acc = new Map();
+    restock.packs.forEach((pack, i) => {
+      for (const s of allocate(pack.priceKopecks, cupsInRange(state.cups, coverage.periods[i].start, coverage.periods[i].end))) {
+        const prev = acc.get(s.personId) || { personId: s.personId, cups: 0, shareKopecks: 0 };
+        prev.cups += s.cups; prev.shareKopecks += s.shareKopecks; acc.set(s.personId, prev);
+      }
+    });
+    return { restock, coverage, total, shares: [...acc.values()] };
+  }
+  return { restock, coverage, total, shares: allocate(total, cupsInRange(state.cups, coverage.start, coverage.end)) };
+}
+function settlements() { return sortRestocks(state.restocks).map(settle); }
+function balances() {
+  const net = new Map(state.people.map((p) => [p.id, 0]));
+  for (const s of settlements()) {
+    net.set(s.restock.buyerId, (net.get(s.restock.buyerId) || 0) + s.total);
+    for (const sh of s.shares) net.set(sh.personId, (net.get(sh.personId) || 0) - sh.shareKopecks);
+  }
+  return state.people.map((p) => ({ person: p, net: net.get(p.id) || 0 }));
+}
+function transfers(rows) {
+  const debtors = rows.filter((b) => b.net < 0).map((b) => ({ id: b.person.id, left: -b.net })).sort((a, b) => b.left - a.left);
+  const creditors = rows.filter((b) => b.net > 0).map((b) => ({ id: b.person.id, left: b.net })).sort((a, b) => b.left - a.left);
+  const out = []; let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const amount = Math.min(debtors[i].left, creditors[j].left);
+    if (amount > 0) out.push({ from: debtors[i].id, to: creditors[j].id, amount });
+    debtors[i].left -= amount; creditors[j].left -= amount;
+    if (debtors[i].left === 0) i++; if (creditors[j].left === 0) j++;
+  }
+  return out;
+}
+function historyPeriods() {
+  const endExclusive = addDays(todayISO(), 1);
+  if (!state.openings.length) return [];
+  const sorted = sortOpenings(state.openings);
+  return sorted.map((o, i) => {
+    const next = sorted[i + 1]; const found = findPack(o.packId);
+    return { id: o.id, start: o.date, end: next ? next.date : endExclusive, label: found?.pack.name || "Пачка", current: !next };
+  }).filter((p) => p.start < p.end);
+}
+function openPeriod() {
+  const today = todayISO();
+  const last = sortOpenings(state.openings).at(-1)?.date || sortRestocks(state.restocks).at(-1)?.date || earliestCup(state.cups) || today;
+  const end = addDays(today, 1); const map = cupsInRange(state.cups, last, end);
+  return { start: last, end, map, total: [...map.values()].reduce((s, n) => s + n, 0) };
+}
+function nextColor() { const used = new Set(state.people.filter((p) => !p.archived).map((p) => p.color)); return COLORS.find((c) => !used.has(c[0]))?.[0] || COLORS[state.people.length % COLORS.length][0]; }
+function cupsOn(date, personId) { return state.cups.find((c) => c.date === date && c.personId === personId)?.cups || 0; }
+function setCups(date, personId, n) {
+  const value = Math.max(0, Math.round(n * 2) / 2);
+  state.cups = state.cups.filter((c) => !(c.date === date && c.personId === personId));
+  if (value > 0) state.cups.push({ date, personId, cups: value });
+  touch(); render();
+}
+function ledgerDoc() { return { kofe: 1, appVersion: APP_VERSION, updatedAt: state.updatedAt, people: state.people, cups: state.cups, restocks: state.restocks, openings: state.openings }; }
+function applyDoc(doc) { pulling = true; state = normalize(doc); saveLocal(); pulling = false; render(); }
+
+function bytesToB64(bytes) { let s = ""; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); }
+function b64ToBytes(b64) { const s = atob(b64); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; }
+async function deriveKey(password, salt) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 120000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function seal(doc) {
+  if (!sync.password) return doc;
+  if (!crypto.subtle) throw new Error("Шифрование работает только по https, например на GitHub Pages");
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(sync.password, salt);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(doc))));
+  return { kofe: 1, enc: true, salt: bytesToB64(salt), iv: bytesToB64(iv), ct: bytesToB64(ct) };
+}
+async function openSealed(record) {
+  if (!record || !record.enc) return record;
+  if (!sync.password) throw new Error("Копилка зашифрована. Введите пароль в настройках");
+  try {
+    const key = await deriveKey(sync.password, b64ToBytes(record.salt));
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64ToBytes(record.iv) }, key, b64ToBytes(record.ct));
+    return JSON.parse(new TextDecoder().decode(plain));
+  } catch (e) { throw new Error("Неверный пароль или повреждённая копилка"); }
+}
+async function binFetch(path, options) {
+  const headers = Object.assign({ "X-Master-Key": sync.masterKey.trim() }, (options && options.headers) || {});
+  const res = await fetch("https://api.jsonbin.io/v3" + path, Object.assign({}, options, { headers }));
+  const text = await res.text();
+  let data = {}; try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { message: text }; }
+  if (!res.ok) throw new Error(data.message || ("JSONBin " + res.status));
+  return data;
+}
+async function pushRemote() {
+  capture();
+  if (!sync.masterKey.trim() || !sync.binId.trim()) throw new Error("Нужны мастер-ключ и ID копилки");
+  await binFetch("/b/" + encodeURIComponent(sync.binId.trim()), { method: "PUT", headers: { "Content-Type": "application/json", "X-Bin-Name": "kofe-kassa" }, body: JSON.stringify(await seal(ledgerDoc())) });
+  sync.last = new Date().toISOString(); saveSync(); toast("Сохранено в JSONBin");
+  const status = document.getElementById("sync-status");
+  if (status) status.textContent = "Последняя отправка: " + new Date(sync.last).toLocaleString("ru-RU");
+}
+function scheduleSync() { if (!sync.autoSync || !sync.masterKey.trim() || !sync.binId.trim()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => { pushRemote().catch((e) => toast(e.message)); }, 900); }
+async function pullRemote() {
+  capture();
+  if (!sync.masterKey.trim() || !sync.binId.trim()) throw new Error("Нужны мастер-ключ и ID копилки");
+  const data = await binFetch("/b/" + encodeURIComponent(sync.binId.trim()) + "/latest");
+  const doc = await openSealed(data.record);
+  if (!doc || (!doc.people && !doc.kofe)) throw new Error("В копилке нет данных кофе-кассы");
+  applyDoc(doc); sync.last = new Date().toISOString(); saveSync(); toast("Загружено из JSONBin");
+}
+async function createBin() {
+  capture();
+  if (!sync.masterKey.trim()) throw new Error("Вставьте мастер-ключ JSONBin");
+  const data = await binFetch("/b", { method: "POST", headers: { "Content-Type": "application/json", "X-Bin-Name": "kofe-kassa", "X-Bin-Private": "true" }, body: JSON.stringify(await seal(ledgerDoc())) });
+  sync.binId = (data.metadata && data.metadata.id) || "";
+  if (!sync.binId) throw new Error("JSONBin не вернул ID копилки");
+  const field = document.getElementById("binId"); if (field) field.value = sync.binId;
+  sync.last = new Date().toISOString(); saveSync(); render(); toast("Копилка создана");
+}
+async function bootSync() {
+  if (!sync.masterKey.trim() || !sync.binId.trim()) return;
+  try {
+    const data = await binFetch("/b/" + encodeURIComponent(sync.binId.trim()) + "/latest");
+    const doc = await openSealed(data.record);
+    if (doc && (doc.updatedAt || "") > (state.updatedAt || "")) { applyDoc(doc); toast("Подтянуты более новые данные"); }
+    else if (sync.autoSync && state.updatedAt > (doc && doc.updatedAt || "") && state.people.length) pushRemote().catch(() => {});
+  } catch (e) { toast(e.message); }
+}
+
+function capture() {
+  document.querySelectorAll("[data-person]").forEach((el) => { const p = personById(el.dataset.person); if (p && el.value.trim()) p.name = el.value.trim(); });
+  const mk = document.getElementById("masterKey");
+  if (mk) { sync.masterKey = mk.value.trim(); sync.binId = document.getElementById("binId").value.trim(); sync.password = document.getElementById("binPassword").value; sync.autoSync = document.getElementById("autoSync").checked; saveSync(); }
+  const form = document.getElementById("restock-form");
+  if (form && ui.restockDraft) readRestock(form, ui.restockDraft);
+  const of = document.getElementById("opening-form");
+  if (of && ui.openingDraft) { ui.openingDraft.date = of.date.value; ui.openingDraft.packId = of.packId.value; }
+  const hf = document.getElementById("hist-from");
+  if (hf) { ui.from = hf.value; ui.to = document.getElementById("hist-to").value; }
+  const est = document.getElementById("estimate");
+  if (est) ui.estimate = est.value;
+}
+function readRestock(form, draft) {
+  draft.date = form.date.value; draft.buyerId = form.buyerId.value; draft.note = form.note.value;
+  draft.periodsCovered = Math.max(1, Number(form.periods.value) || 1);
+  draft.splitMode = form.matched.checked ? "matched" : "pooled";
+  draft.packs.forEach((p, i) => {
+    const nameEl = form["pname" + i];
+    if (!nameEl) return;
+    p.name = nameEl.value.trim() || "Кофе";
+    p.priceKopecks = parseMoney(form["pprice" + i].value);
+    p.massGrams = parseMass(form["pmass" + i].value);
+  });
+}
+function blankPack() { const prev = lastPackDefaults(); return { id: uid(), name: prev?.name || "", priceKopecks: prev?.priceKopecks || 0, massGrams: prev?.massGrams || 250 }; }
+function openRestock(existing) {
+  if (existing) ui.restockDraft = JSON.parse(JSON.stringify(existing));
+  else ui.restockDraft = { id: null, date: todayISO(), buyerId: (state.people.find((p) => !p.archived) || state.people[0] || {}).id || "", packs: [blankPack()], periodsCovered: 1, splitMode: "pooled", note: "" };
+  ui.sheet = "restock"; render();
+}
+function saveRestock() {
+  const draft = ui.restockDraft; readRestock(document.getElementById("restock-form"), draft);
+  if (!draft.buyerId) { toast("Добавьте участника в настройках"); return; }
+  const row = { id: draft.id || uid(), date: draft.date || todayISO(), buyerId: draft.buyerId, packs: draft.packs.map((p) => ({ id: p.id || uid(), name: p.name, priceKopecks: p.priceKopecks, massGrams: p.massGrams || 250 })), periodsCovered: draft.periodsCovered || draft.packs.length, splitMode: draft.splitMode, note: draft.note || "" };
+  if (draft.id) state.restocks = state.restocks.map((r) => r.id === draft.id ? row : r); else state.restocks.push(row);
+  const alive = new Set(state.restocks.flatMap((r) => r.packs.map((p) => p.id)));
+  state.openings = state.openings.filter((o) => alive.has(o.packId));
+  ui.sheet = null; ui.restockDraft = null; touch(); toast("Закупка сохранена"); render();
+}
+function previewShares(draft) {
+  const fake = { id: draft.id || "preview", date: draft.date || todayISO(), buyerId: draft.buyerId, packs: draft.packs, periodsCovered: draft.periodsCovered || draft.packs.length || 1, splitMode: draft.splitMode, note: "" };
+  const saved = state.restocks;
+  state.restocks = [...saved.filter((r) => r.id !== fake.id), fake];
+  try { return settle(fake); } finally { state.restocks = saved; }
+}
+function render() {
+  app.innerHTML = `<header><div class="brand"><div class="mark">☕</div><div><h1>Кофе-касса</h1><p>кто сколько должен за пачку</p></div></div><button class="btn sm" type="button" data-act="add-restock">Закупка</button></header><main>${view(ui.tab)}</main><nav>${TABS.map(([id, label]) => `<button type="button" data-tab="${id}" class="${ui.tab === id ? "on" : ""}">${label}</button>`).join("")}</nav>${ui.sheet === "restock" ? restockSheet() : ""}${ui.sheet === "opening" ? openingSheet() : ""}`;
+}
+function stepper(date, person) { const n = cupsOn(date, person.id); return `<span class="step"><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="-0.5">−</button><b>${n}</b><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="0.5">+</button></span>`; }
+function personLine(p) { return `<span class="row grow"><span class="dot" style="background:${colorOf(p.color)}"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span></span>`; }
+function view(tab) { if (tab === "balance") return viewBalance(); if (tab === "cups") return viewCups(); if (tab === "history") return viewHistory(); if (tab === "restocks") return viewRestocks(); return viewSettings(); }
+function viewBalance() {
+  const active = state.people.filter((p) => !p.archived); const today = todayISO();
+  const rows = balances().sort((a, b) => b.net - a.net); const moves = transfers(rows); const open = openPeriod();
+  const last = sortRestocks(state.restocks).at(-1);
+  if (ui.estimate == null) ui.estimate = last ? rub(totalKopecks(last)) : "";
+  const est = parseMoney(ui.estimate) ? allocate(parseMoney(ui.estimate), open.map) : [];
+  return `<h2>Сегодня</h2><p class="sub">${formatDay(today)}</p>`
+    + (active.length ? active.map((p) => `<div class="card row">${personLine(p)}${stepper(today, p)}</div>`).join("") : `<div class="card muted">Добавьте участников в «Настройках».</div>`)
+    + `<h3>Кто кому должен</h3>` + (rows.length ? rows.map((b) => `<div class="card split"><span>${esc(b.person.name)}</span><b class="${b.net < 0 ? "money-neg" : b.net > 0 ? "money-pos" : ""}">${moneySigned(b.net)}</b></div>`).join("") : `<div class="card muted">Пока нет расчётов.</div>`)
+    + (moves.length ? `<h3>Переводы</h3>` + moves.map((t) => `<div class="card">${esc(nameOf(t.from))} → ${esc(nameOf(t.to))} <b>${money(t.amount)}</b></div>`).join("") : "")
+    + `<h3>Текущий период</h3><div class="card"><div class="muted">${formatDayShort(open.start)} — сегодня · ${cupsWord(open.total)}</div><label class="lbl">Прикинуть цену следующей пачки, ₽</label><input class="field" id="estimate" value="${esc(ui.estimate || "")}" inputmode="decimal" />${est.map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><span>${money(s.shareKopecks)}</span></div>`).join("")}</div>`;
+}
+function viewCups() {
+  const [y, m] = ui.month.split("-").map(Number); const first = new Date(y, m - 1, 1); const lead = (first.getDay() + 6) % 7; const start = new Date(y, m - 1, 1 - lead); const cells = [];
+  for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); cells.push(d); }
+  const today = todayISO(); const active = state.people.filter((p) => !p.archived); const dayOpen = state.openings.filter((o) => o.date === ui.selected);
+  return `<h2>Чашки</h2><p class="sub">Месяц и открытия пачек</p><div class="row" style="margin-bottom:10px"><button class="btn-ghost sm" type="button" data-act="month" data-d="-1">←</button><button class="btn-ghost grow" type="button" data-act="today">${MONTHS[m-1]} ${y}</button><button class="btn-ghost sm" type="button" data-act="month" data-d="1">→</button></div>
+    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const cups = state.cups.filter((c) => c.date === iso).reduce((s, c) => s + c.cups, 0); const opens = state.openings.some((o) => o.date === iso); return `<button type="button" class="day ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}">${d.getDate()}<div class="n">${cups ? cups : opens ? "пач" : "&nbsp;"}</div></button>`; }).join("")}</div></div>
+    <h3>${formatDay(ui.selected)}${ui.selected === today ? " · сегодня" : ""}</h3>
+    ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}</div>`).join("")}
+    <h3>Открытые пачки в этот день</h3>
+    ${dayOpen.length ? dayOpen.map((o) => { const found = findPack(o.packId); const title = found ? found.pack.name + " · " + money(found.pack.priceKopecks) + " · " + formatMass(found.pack.massGrams) : "Пачка удалена"; return `<div class="card row"><span class="grow">${esc(title)}</span><button class="btn-ghost sm" type="button" data-act="del-open" data-id="${o.id}">Убрать</button></div>`; }).join("") : `<div class="card muted">В этот день пачку не открывали.</div>`}
+    <button class="btn" type="button" data-act="open-pack">Открыть пачку</button>`;
+}
+function viewHistory() {
+  const periods = historyPeriods();
+  if (!ui.periodId || (ui.periodId !== "custom" && !periods.some((p) => p.id === ui.periodId))) ui.periodId = (periods.find((p) => p.current) || periods.at(-1) || {}).id || "custom";
+  const custom = ui.periodId === "custom"; const period = periods.find((p) => p.id === ui.periodId);
+  const start = custom ? (ui.from || addDays(todayISO(), -30)) : period?.start;
+  const end = custom ? (ui.to ? addDays(ui.to, 1) : addDays(todayISO(), 1)) : period?.end;
+  if (!ui.from) ui.from = start || todayISO();
+  if (!ui.to) ui.to = end ? addDays(end, -1) : todayISO();
+  const map = start && end ? cupsInRange(state.cups, start, end) : new Map();
+  const rows = state.people.filter((p) => !p.archived || (map.get(p.id) || 0) > 0).map((p) => ({ p, cups: map.get(p.id) || 0 })).sort((a, b) => b.cups - a.cups);
+  const shown = ui.personId === "all" ? rows : rows.filter((r) => r.p.id === ui.personId);
+  const total = shown.reduce((s, r) => s + r.cups, 0);
+  const by = new Map();
+  if (start && end) for (const e of state.cups) { if (e.date < start || e.date >= end) continue; if (ui.personId !== "all" && e.personId !== ui.personId) continue; by.set(e.date, (by.get(e.date) || 0) + e.cups); }
+  const days = [...by.entries()].sort((a, b) => a[0] < b[0] ? 1 : -1);
+  return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
+    <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
+    ${custom ? `<div class="row" style="margin-top:8px"><input class="field" id="hist-from" type="date" value="${esc(ui.from)}"><input class="field" id="hist-to" type="date" value="${esc(ui.to)}"></div><button class="btn sm" style="margin-top:8px" type="button" data-act="hist-apply">Показать</button>` : ""}
+    <label class="lbl">Кто</label><select class="field" id="who"><option value="all" ${ui.personId === "all" ? "selected" : ""}>Все</option>${state.people.map((p) => `<option value="${p.id}" ${ui.personId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+    <div class="card" style="margin-top:12px"><b>${cupsWord(total)}</b><div class="muted">${start ? formatDayShort(start) + " — " + formatDayShort(addDays(end, -1)) : "Нет периода. Откройте пачку в календаре."}</div></div>
+    ${shown.map((r) => `<div class="card split"><span>${esc(r.p.name)}</span><b>${cupsWord(r.cups)}</b></div>`).join("")}
+    ${days.slice(0, 40).map(([date, n]) => `<div class="split" style="padding:4px 2px"><span class="muted">${formatDayShort(date)}</span><span>${n}</span></div>`).join("")}`;
+}
+function viewRestocks() {
+  const list = sortRestocks(state.restocks).slice().reverse();
+  if (!list.length) return `<h2>Закупки</h2><p class="sub">Пачки с ценой и массой</p><div class="card muted">Пока пусто.</div><button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
+  return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p>` + list.map((r) => {
+    const s = settle(r);
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.shares.filter((x) => x.shareKopecks || x.cups).map((x) => `<div class="split"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.shareKopecks)}</span></div>`).join("")}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
+  }).join("") + `<button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
+}
+function viewSettings() {
+  const people = state.people.map((p) => `<div class="card" style="${p.archived ? "opacity:.6" : ""}"><div class="row"><span class="dot" style="background:${colorOf(p.color)}"></span><input class="field" data-person="${p.id}" value="${esc(p.name)}" aria-label="Имя" /><button class="btn-ghost sm" type="button" data-act="del-person" data-id="${p.id}">✕</button></div><div class="swatches">${COLORS.map(([id, hex, label]) => `<button type="button" title="${label}" data-act="color" data-id="${p.id}" data-color="${id}" class="${p.color === id ? "on" : ""}" style="background:${hex}"></button>`).join("")}</div><label class="row" style="margin-top:8px;font-size:14px"><input type="checkbox" data-act="archive" data-id="${p.id}" ${p.archived ? "checked" : ""}/> Не пьёт сейчас</label></div>`).join("");
+  return `<h2>Настройки</h2><p class="sub">Люди и общая копилка. Версия ${APP_VERSION}</p><h3>Участники</h3>
+    <form id="add-person" class="row" style="margin-bottom:10px"><input class="field" name="name" placeholder="Имя" aria-label="Имя нового участника" /><button class="btn" type="submit">Добавить</button></form>
+    ${people || `<div class="card muted">Пока никого нет.</div>`}
+    <h3>Синхронизация JSONBin</h3>
+    <div class="card"><p class="help">Ключ и пароль остаются в этом браузере. В копилке только чашки, люди и закупки. На другом телефоне введите те же ключ, ID и пароль.</p>
+      <label class="lbl">Мастер-ключ</label><input class="field" id="masterKey" type="password" autocomplete="off" value="${esc(sync.masterKey)}" />
+      <label class="lbl">ID копилки</label><input class="field" id="binId" autocomplete="off" value="${esc(sync.binId)}" placeholder="создастся кнопкой ниже" />
+      <label class="lbl">Пароль шифрования (необязательно)</label><input class="field" id="binPassword" type="password" autocomplete="off" value="${esc(sync.password)}" />
+      <label class="row" style="margin:10px 0;font-size:14px"><input id="autoSync" type="checkbox" ${sync.autoSync ? "checked" : ""}/> Отправлять изменения сама</label>
+      <div class="row" style="flex-wrap:wrap"><button class="btn sm" type="button" data-act="bin-create">Создать копилку</button><button class="btn-ghost sm" type="button" data-act="bin-push">Сохранить</button><button class="btn-ghost sm" type="button" data-act="bin-pull">Загрузить</button></div>
+      <p class="muted" id="sync-status">${sync.last ? "Последний обмен: " + new Date(sync.last).toLocaleString("ru-RU") : "Ещё не синхронизировали"}</p>
+    </div>
+    <details class="help card"><summary>Как получить ключ JSONBin</summary><p>1. Зайдите на jsonbin.io.<br>2. API Keys → скопируйте X-Master-Key.<br>3. Вставьте его сюда и нажмите «Создать копилку».<br>4. ID сохранится сам. На втором устройстве впишите ключ, ID и тот же пароль, затем «Загрузить».</p></details>
+    <h3>Файл программы</h3>
+    <button class="btn" type="button" data-act="save-html">Сохранить HTML в Загрузки</button>
+    <p class="help">Откроется меню телефона. Выберите «Сохранить в файлы» или «Загрузки». Файл будет называться index.html.</p>
+    <h3>Файл данных</h3><div class="row"><button class="btn-ghost sm" type="button" data-act="export">Скачать JSON</button><button class="btn-ghost sm" type="button" data-act="import">Загрузить JSON</button></div><input id="import-file" type="file" accept="application/json" hidden />
+    <h3>Как обновить программу</h3><div class="card help">Замените на GitHub файл <b>index.html</b> новым. Люди и чашки не сотрутся: они в JSONBin. После замены откройте сайт — если включена автосинхронизация, данные подтянутся сами.</div>
+    <button class="btn-ghost" type="button" data-act="wipe">Очистить всё на этом устройстве</button>`;
+}
+function restockSheet() {
+  const d = ui.restockDraft; const people = state.people.filter((p) => !p.archived || p.id === d.buyerId); const live = previewShares(d);
+  return `<div class="sheet"><div class="panel"><div class="row"><h2 class="grow">${d.id ? "Закупка" : "Новая закупка"}</h2><button class="btn-ghost sm" type="button" data-act="close">Закрыть</button></div>
+    <form id="restock-form"><label class="lbl">Дата</label><input class="field" name="date" type="date" value="${esc(d.date)}" />
+      <label class="lbl">Кто купил</label><select class="field" name="buyerId">${people.map((p) => `<option value="${p.id}" ${p.id === d.buyerId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+      <h3>Пачки</h3>${d.packs.map((p, i) => `<div class="card"><label class="lbl">Название</label><input class="field" name="pname${i}" value="${esc(p.name)}" data-pack="${i}" data-kind="name" /><div class="row"><div class="grow"><label class="lbl">Цена, ₽</label><input class="field" name="pprice${i}" inputmode="decimal" value="${p.priceKopecks ? rub(p.priceKopecks) : ""}" /></div><div class="grow"><label class="lbl">Масса, г</label><input class="field" name="pmass${i}" inputmode="decimal" value="${p.massGrams || ""}" /></div></div><button class="btn-ghost sm" style="margin-top:8px" type="button" data-act="del-pack" data-i="${i}">Убрать пачку</button></div>`).join("")}
+      <button class="btn-ghost" type="button" data-act="add-pack">Ещё пачка</button>
+      <label class="lbl">Сколько последних периодов закрывает закупка</label><input class="field" name="periods" type="number" min="1" value="${d.periodsCovered || d.packs.length}" />
+      <label class="row" style="margin-top:8px;font-size:14px"><input name="matched" type="checkbox" ${d.splitMode === "matched" ? "checked" : ""}/> Каждая пачка на свой период</label>
+      <label class="lbl">Заметка</label><textarea class="field" name="note">${esc(d.note || "")}</textarea>
+      <div class="card"><div class="muted">Делится ${money(live.total)} за ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${live.shares.map((s) => `<div class="split"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><b>${money(s.shareKopecks)}</b></div>`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
+      <button class="btn" type="submit">Сохранить</button></form></div></div>`;
+}
+function openingSheet() {
+  const d = ui.openingDraft; const rows = unopened();
+  if (d.packId && !rows.some((r) => r.pack.id === d.packId)) { const cur = findPack(d.packId); if (cur) rows.unshift(cur); }
+  return `<div class="sheet"><div class="panel"><div class="row"><h2 class="grow">Открыть пачку</h2><button class="btn-ghost sm" type="button" data-act="close">Закрыть</button></div>
+    ${rows.length ? `<form id="opening-form"><label class="lbl">Дата</label><input class="field" type="date" name="date" value="${esc(d.date)}" /><label class="lbl">Пачка из закупок</label><select class="field" name="packId">${rows.map((r) => `<option value="${r.pack.id}" ${r.pack.id === d.packId ? "selected" : ""}>${esc(r.pack.name)} · ${money(r.pack.priceKopecks)} · ${formatMass(r.pack.massGrams)}</option>`).join("")}</select><p class="help">Отчётный период считается от даты открытия до следующего открытия. Цена берётся из закупки.</p><button class="btn" type="submit">Сохранить</button></form>` : `<div class="card muted">Все купленные пачки уже открыты. Сначала добавьте закупку.</div>`}</div></div>`;
+}
+
+function saveAppFile() {
+  return (async () => {
+    let text = "";
+    try { text = await (await fetch(location.href, { cache: "no-store" })).text(); } catch (e) {}
+    if (!text.includes("Кофе-касса")) text = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+    const file = new File([text], "index.html", { type: "text/html" });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({ files: [file], title: "Кофе-касса" });
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "text/html" }));
+    a.download = "index.html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast("Если файла нет в Загрузках, выберите «Сохранить в файлы»");
+  })();
+}
+app.addEventListener("click", (e) => {
+  capture();
+  const tabBtn = e.target.closest("[data-tab]");
+  if (tabBtn) { ui.tab = tabBtn.dataset.tab; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(); return; }
+  const el = e.target.closest("[data-act]"); if (!el) return;
+  const act = el.dataset.act;
+  if (act === "cup") { setCups(el.dataset.date, el.dataset.id, cupsOn(el.dataset.date, el.dataset.id) + Number(el.dataset.d)); return; }
+  if (act === "month") { const [y, m] = ui.month.split("-").map(Number); ui.month = todayISO(new Date(y, m - 1 + Number(el.dataset.d), 1)).slice(0, 7); render(); return; }
+  if (act === "today") { ui.selected = todayISO(); ui.month = ui.selected.slice(0, 7); render(); return; }
+  if (act === "day") { ui.selected = el.dataset.date; ui.month = ui.selected.slice(0, 7); render(); return; }
+  if (act === "add-restock") { openRestock(null); return; }
+  if (act === "edit-restock") { openRestock(state.restocks.find((r) => r.id === el.dataset.id)); return; }
+  if (act === "close") { ui.sheet = null; ui.restockDraft = null; ui.openingDraft = null; render(); return; }
+  if (act === "add-pack") { ui.restockDraft.packs.push(blankPack()); ui.restockDraft.periodsCovered = ui.restockDraft.packs.length; render(); return; }
+  if (act === "del-pack") { ui.restockDraft.packs.splice(Number(el.dataset.i), 1); if (!ui.restockDraft.packs.length) ui.restockDraft.packs.push(blankPack()); ui.restockDraft.periodsCovered = ui.restockDraft.packs.length; render(); return; }
+  if (act === "del-restock") {
+    if (!confirm("Удалить закупку и открытия её пачек?")) return;
+    const removed = state.restocks.find((r) => r.id === el.dataset.id);
+    const ids = new Set((removed?.packs || []).map((p) => p.id));
+    state.restocks = state.restocks.filter((r) => r.id !== el.dataset.id);
+    state.openings = state.openings.filter((o) => !ids.has(o.packId));
+    touch(); render(); return;
+  }
+  if (act === "open-pack") { const left = unopened(); ui.openingDraft = { date: ui.selected, packId: left[0]?.pack.id || "" }; ui.sheet = "opening"; render(); return; }
+  if (act === "del-open") { state.openings = state.openings.filter((o) => o.id !== el.dataset.id); touch(); render(); return; }
+  if (act === "color") { const p = personById(el.dataset.id); if (p) p.color = el.dataset.color; touch(); render(); return; }
+  if (act === "del-person") {
+    if (!confirm("Удалить участника, его чашки и закупки, где он платил?")) return;
+    const id = el.dataset.id;
+    const removed = state.restocks.filter((r) => r.buyerId === id);
+    const packIds = new Set(removed.flatMap((r) => r.packs.map((p) => p.id)));
+    state.people = state.people.filter((p) => p.id !== id);
+    state.cups = state.cups.filter((c) => c.personId !== id);
+    state.restocks = state.restocks.filter((r) => r.buyerId !== id);
+    state.openings = state.openings.filter((o) => !packIds.has(o.packId));
+    touch(); render(); return;
+  }
+  if (act === "bin-create") { createBin().catch((err) => toast(err.message)); return; }
+  if (act === "bin-push") { pushRemote().catch((err) => toast(err.message)); return; }
+  if (act === "bin-pull") { pullRemote().catch((err) => toast(err.message)); return; }
+  if (act === "save-html") { saveAppFile().catch((err) => toast(err.message || "Не удалось сохранить файл")); return; }
+  if (act === "export") {
+    const blob = new Blob([JSON.stringify(ledgerDoc(), null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "kofe-kassa.json"; a.click(); URL.revokeObjectURL(a.href); return;
+  }
+  if (act === "import") { document.getElementById("import-file").click(); return; }
+  if (act === "wipe") { if (!confirm("Очистить данные на этом устройстве? JSONBin не удалится.")) return; state = emptyState(); state.updatedAt = new Date().toISOString(); saveLocal(); render(); return; }
+  if (act === "hist-apply") render();
+});
+app.addEventListener("submit", (e) => {
+  capture();
+  if (e.target.id === "add-person") { e.preventDefault(); const name = new FormData(e.target).get("name").toString().trim(); if (!name) return; state.people.push({ id: uid(), name, color: nextColor(), archived: false }); touch(); render(); return; }
+  if (e.target.id === "restock-form") { e.preventDefault(); saveRestock(); return; }
+  if (e.target.id === "opening-form") {
+    e.preventDefault(); const date = e.target.date.value; const packId = e.target.packId.value;
+    if (!packId) { toast("Нет пачки"); return; }
+    state.openings = state.openings.filter((o) => o.packId !== packId);
+    state.openings.push({ id: uid(), date, packId });
+    ui.sheet = null; touch(); toast("Пачка открыта"); render();
+  }
+});
+app.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.dataset && t.dataset.person) { const p = personById(t.dataset.person); if (p) p.name = t.value.trim() || p.name; touch(); return; }
+  if (t.dataset && t.dataset.act === "archive") { const p = personById(t.dataset.id); if (p) p.archived = t.checked; touch(); render(); return; }
+  if (t.id === "period") { ui.periodId = t.value; render(); return; }
+  if (t.id === "who") { ui.personId = t.value; render(); return; }
+  if (t.id === "estimate") { ui.estimate = t.value; render(); return; }
+  if (t.id === "import-file" && t.files && t.files[0]) {
+    t.files[0].text().then((text) => { applyDoc(JSON.parse(text)); touch(); toast("JSON загружен"); }).catch(() => toast("Не удалось прочитать файл"));
+  }
+  if (t.id === "masterKey" || t.id === "binId" || t.id === "binPassword" || t.id === "autoSync") capture();
+  if (t.dataset && t.dataset.kind === "name" && ui.restockDraft) {
+    const found = lastPackDefaults(t.value);
+    if (found && t.value.trim() && found.name.trim().toLowerCase() === t.value.trim().toLowerCase()) {
+      const i = Number(t.dataset.pack); const form = document.getElementById("restock-form");
+      form["pprice" + i].value = rub(found.priceKopecks); form["pmass" + i].value = found.massGrams;
+      ui.restockDraft.packs[i].priceKopecks = found.priceKopecks; ui.restockDraft.packs[i].massGrams = found.massGrams;
+    }
+  }
+});
+render();
+bootSync();
+</script>
+</body>
+</html>
