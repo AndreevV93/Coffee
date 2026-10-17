@@ -45,7 +45,8 @@
   .lbl { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
   .step { display: flex; align-items: center; gap: 6px; flex: none; }
   .step button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: #fffaf3; }
-  .step b { min-width: 28px; text-align: center; }
+  .step input { width: 52px; height: 32px; margin: 0; padding: 0 4px; border: 1px solid var(--line); border-radius: 8px; background: #fffaf3; text-align: center; }
+  main { overflow-anchor: none; }
   .dot { width: 14px; height: 14px; border-radius: 99px; flex: none; }
   .grid7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
   .dow { text-align: center; font-size: 11px; color: var(--muted); text-transform: uppercase; }
@@ -71,7 +72,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.16";
+const APP_VERSION = "2026.10.17";
 const COLORS = [["umber","#6b4f3a","умбра"],["olive","#8a6239","олива"],["slate","#5c4030","грифель"],["clay","#7a4e3d","глина"],["pine","#6b5344","хвоя"],["cocoa","#3d281c","какао"],["rust","#8a3f32","ржавчина"],["stone","#a3845c","камень"]];
 const MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
 const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
@@ -264,8 +265,17 @@ function openPeriod() {
 }
 function nextColor() { const used = new Set(state.people.filter((p) => !p.archived).map((p) => p.color)); return COLORS.find((c) => !used.has(c[0]))?.[0] || COLORS[state.people.length % COLORS.length][0]; }
 function cupsOn(date, personId) { return state.cups.find((c) => c.date === date && c.personId === personId)?.cups || 0; }
+function parseCups(raw) {
+  const t = String(raw ?? "").trim().replace(",", ".");
+  if (!t) return 0;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 2) / 2;
+}
+function formatCups(n) { const v = Number(n) || 0; return Number.isInteger(v) ? String(v) : String(v).replace(".", ","); }
 function setCups(date, personId, n) {
-  const value = Math.max(0, Math.round(n * 2) / 2);
+  const value = parseCups(n);
+  if (cupsOn(date, personId) === value) return;
   state.cups = state.cups.filter((c) => !(c.date === date && c.personId === personId));
   if (value > 0) state.cups.push({ date, personId, cups: value });
   touch(); render();
@@ -387,10 +397,17 @@ function previewShares(draft) {
   state.restocks = [...saved.filter((r) => r.id !== fake.id), fake];
   try { return settle(fake); } finally { state.restocks = saved; }
 }
-function render() {
+function render(resetScroll) {
+  const prev = app.querySelector("main");
+  const top = !resetScroll && prev ? prev.scrollTop : 0;
   app.innerHTML = `<header><div class="brand"><div class="mark">☕</div><div><h1>Кофе-касса</h1><p>кто сколько должен за пачку</p></div></div><button class="btn sm" type="button" data-act="add-restock">Закупка</button></header><main>${view(ui.tab)}</main><nav>${TABS.map(([id, label]) => `<button type="button" data-tab="${id}" class="${ui.tab === id ? "on" : ""}">${label}</button>`).join("")}</nav>${ui.sheet === "restock" ? restockSheet() : ""}${ui.sheet === "opening" ? openingSheet() : ""}`;
+  const main = app.querySelector("main");
+  if (main) main.scrollTop = top;
 }
-function stepper(date, person) { const n = cupsOn(date, person.id); return `<span class="step"><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="-0.5">−</button><b>${n}</b><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="0.5">+</button></span>`; }
+function stepper(date, person) {
+  const n = cupsOn(date, person.id);
+  return `<span class="step"><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="-0.5">−</button><input class="cup-input" inputmode="decimal" enterkeyhint="done" aria-label="Чашки" data-date="${date}" data-id="${person.id}" value="${esc(formatCups(n))}" /><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="0.5">+</button></span>`;
+}
 function personLine(p) { return `<span class="row grow"><span class="dot" style="background:${colorOf(p.color)}"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span></span>`; }
 function view(tab) { if (tab === "balance") return viewBalance(); if (tab === "cups") return viewCups(); if (tab === "history") return viewHistory(); if (tab === "restocks") return viewRestocks(); return viewSettings(); }
 function viewBalance() {
@@ -432,13 +449,21 @@ function viewHistory() {
   const by = new Map();
   if (start && end) for (const e of state.cups) { if (e.date < start || e.date >= end) continue; if (ui.personId !== "all" && e.personId !== ui.personId) continue; by.set(e.date, (by.get(e.date) || 0) + e.cups); }
   const days = [...by.entries()].sort((a, b) => a[0] < b[0] ? 1 : -1);
+  const editDays = ui.personId === "all" ? days.slice(0, 60) : (() => {
+    const list = [];
+    if (start && end) for (let d = addDays(end, -1); d >= start && list.length < 45; d = addDays(d, -1)) list.push([d, cupsOn(d, ui.personId)]);
+    return list;
+  })();
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
     <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
     ${custom ? `<div class="row" style="margin-top:8px"><input class="field" id="hist-from" type="date" value="${esc(ui.from)}"><input class="field" id="hist-to" type="date" value="${esc(ui.to)}"></div><button class="btn sm" style="margin-top:8px" type="button" data-act="hist-apply">Показать</button>` : ""}
     <label class="lbl">Кто</label><select class="field" id="who"><option value="all" ${ui.personId === "all" ? "selected" : ""}>Все</option>${state.people.map((p) => `<option value="${p.id}" ${ui.personId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
     <div class="card" style="margin-top:12px"><b>${cupsWord(total)}</b><div class="muted">${start ? formatDayShort(start) + " — " + formatDayShort(addDays(end, -1)) : "Нет периода. Откройте пачку в календаре."}</div></div>
     ${shown.map((r) => `<div class="card split"><span>${esc(r.p.name)}</span><b>${cupsWord(r.cups)}</b></div>`).join("")}
-    ${days.slice(0, 40).map(([date, n]) => `<div class="split" style="padding:4px 2px"><span class="muted">${formatDayShort(date)}</span><span>${n}</span></div>`).join("")}`;
+    ${ui.personId === "all" ? `<p class="muted">Выберите человека, чтобы править чашки по дням.</p>` : `<p class="muted">Число можно вписать с клавиатуры. Половина чашки — 0,5.</p>`}
+    ${editDays.map(([date, n]) => ui.personId === "all"
+      ? `<div class="split" style="padding:4px 2px"><span class="muted">${formatDayShort(date)}</span><span>${formatCups(n)}</span></div>`
+      : `<div class="card row"><span class="grow">${formatDayShort(date)}</span>${stepper(date, { id: ui.personId })}</div>`).join("")}`;
 }
 function viewRestocks() {
   const list = sortRestocks(state.restocks).slice().reverse();
@@ -513,10 +538,15 @@ function saveAppFile() {
 app.addEventListener("click", (e) => {
   capture();
   const tabBtn = e.target.closest("[data-tab]");
-  if (tabBtn) { ui.tab = tabBtn.dataset.tab; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(); return; }
+  if (tabBtn) { ui.tab = tabBtn.dataset.tab; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(true); return; }
   const el = e.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act;
-  if (act === "cup") { setCups(el.dataset.date, el.dataset.id, cupsOn(el.dataset.date, el.dataset.id) + Number(el.dataset.d)); return; }
+  if (act === "cup") {
+    const field = el.parentElement && el.parentElement.querySelector(".cup-input");
+    const base = field ? parseCups(field.value) : cupsOn(el.dataset.date, el.dataset.id);
+    setCups(el.dataset.date, el.dataset.id, base + Number(el.dataset.d));
+    return;
+  }
   if (act === "month") { const [y, m] = ui.month.split("-").map(Number); ui.month = todayISO(new Date(y, m - 1 + Number(el.dataset.d), 1)).slice(0, 7); render(); return; }
   if (act === "today") { ui.selected = todayISO(); ui.month = ui.selected.slice(0, 7); render(); return; }
   if (act === "day") { ui.selected = el.dataset.date; ui.month = ui.selected.slice(0, 7); render(); return; }
@@ -573,6 +603,11 @@ app.addEventListener("submit", (e) => {
 });
 app.addEventListener("change", (e) => {
   const t = e.target;
+  if (t.classList && t.classList.contains("cup-input")) {
+    if (t.dataset.skip === "1") { delete t.dataset.skip; return; }
+    setCups(t.dataset.date, t.dataset.id, t.value);
+    return;
+  }
   if (t.dataset && t.dataset.person) { const p = personById(t.dataset.person); if (p) p.name = t.value.trim() || p.name; touch(); return; }
   if (t.dataset && t.dataset.act === "archive") { const p = personById(t.dataset.id); if (p) p.archived = t.checked; touch(); render(); return; }
   if (t.id === "period") { ui.periodId = t.value; render(); return; }
@@ -589,6 +624,27 @@ app.addEventListener("change", (e) => {
       form["pprice" + i].value = rub(found.priceKopecks); form["pmass" + i].value = found.massGrams;
       ui.restockDraft.packs[i].priceKopecks = found.priceKopecks; ui.restockDraft.packs[i].massGrams = found.massGrams;
     }
+  }
+});
+app.addEventListener("pointerdown", (e) => {
+  const btn = e.target.closest && e.target.closest('[data-act="cup"]');
+  if (!btn || !btn.parentElement) return;
+  const field = btn.parentElement.querySelector(".cup-input");
+  if (field) field.dataset.skip = "1";
+});
+app.addEventListener("focusin", (e) => {
+  const t = e.target;
+  if (!t.classList || !t.classList.contains("cup-input")) return;
+  const main = app.querySelector("main");
+  const top = main ? main.scrollTop : 0;
+  const lock = () => { if (main) main.scrollTop = top; };
+  requestAnimationFrame(lock);
+  setTimeout(lock, 60);
+});
+app.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.classList && e.target.classList.contains("cup-input")) {
+    e.preventDefault();
+    e.target.blur();
   }
 });
 render();
