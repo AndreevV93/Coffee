@@ -26,10 +26,14 @@
   header h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; font-weight: 560; }
   header p { margin: 0; font-size: 12px; opacity: 0.75; }
   .brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
-  .mark { width: 36px; height: 36px; border-radius: 10px; background: var(--cream); color: var(--primary); display: grid; place-items: center; font-size: 18px; flex: none; }
+  .mark { width: 36px; height: 36px; border-radius: 10px; background: var(--cream); color: var(--primary); display: grid; place-items: center; flex: none; }
+  .ico { width: 20px; height: 20px; display: block; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .mark .ico { width: 22px; height: 22px; }
+  .cupmark { width: 22px; height: 22px; flex: none; display: grid; }
+  .cupmark .ico { width: 22px; height: 22px; }
   main { flex: 1; min-height: 0; overflow: auto; padding: 18px 16px 24px; }
-  nav { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--primary); padding-bottom: env(safe-area-inset-bottom); }
-  nav button { border: 0; background: transparent; color: rgba(248, 234, 212, 0.75); min-height: 56px; font-size: 11px; }
+  nav { flex: none; display: grid; grid-template-columns: repeat(6, 1fr); background: var(--primary); padding-bottom: env(safe-area-inset-bottom); }
+  nav button { border: 0; background: transparent; color: rgba(248, 234, 212, 0.75); min-height: 56px; font-size: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.1; padding: 6px 2px; }
   nav button.on { background: var(--cream); color: var(--primary); }
   h2 { margin: 0 0 4px; font-family: Georgia, serif; font-size: 1.6rem; font-weight: 560; }
   h3 { margin: 16px 0 8px; font-size: 15px; }
@@ -66,22 +70,38 @@
   .split { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
   .help { font-size: 13px; color: var(--muted); line-height: 1.45; }
   .help summary { cursor: pointer; color: var(--primary); }
+  .fold { background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; }
+  .fold > summary { cursor: pointer; padding: 12px 14px; font-weight: 650; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary:after { content: "▾"; color: var(--muted); }
+  .fold:not([open]) > summary:after { content: "▸"; }
+  .fold .body { padding: 0 12px 12px; }
+  .version { text-align: center; margin: 18px 0 4px; }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.17";
-const COLORS = [["umber","#6b4f3a","умбра"],["olive","#8a6239","олива"],["slate","#5c4030","грифель"],["clay","#7a4e3d","глина"],["pine","#6b5344","хвоя"],["cocoa","#3d281c","какао"],["rust","#8a3f32","ржавчина"],["stone","#a3845c","камень"]];
+const APP_VERSION = "2026.10.20";
+const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
+const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
+const ICONS = {
+  cup: '<path d="M6 9h10v5a4 4 0 0 1-4 4h-2a4 4 0 0 1-4-4V9z"/><path d="M16 10.2h2.1a1.9 1.9 0 0 1 0 3.8H16"/><path d="M8.6 5.4c.5 1 .4 1.5 0 2.3M12 5.4c.5 1 .4 1.5 0 2.3"/>',
+  cash: '<rect x="3.5" y="6.5" width="17" height="12" rx="2"/><path d="M3.5 10.5h17"/><circle cx="12" cy="14.2" r="1.5"/>',
+  history: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4.4l2.8 1.8"/>',
+  bag: '<path d="M7 9h10l-1 11H8L7 9z"/><path d="M9.2 9V7.2a2.8 2.8 0 0 1 5.6 0V9"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3.2v2.4M12 18.4V21M3.2 12h2.4M18.4 12H21M5.8 5.8l1.7 1.7M16.5 16.5l1.7 1.7M18.2 5.8l-1.7 1.7M7.5 16.5l-1.7 1.7"/>',
+  bank: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18"/><circle cx="8" cy="15" r="1.2"/>',
+};
 const MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
 const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
 const DOW = ["пн","вт","ср","чт","пт","сб","вс"];
-const TABS = [["balance","Касса"],["cups","Чашки"],["history","История"],["restocks","Закупки"],["settings","Настройки"]];
+const TABS = [["balance","Касса","cash"],["cups","Чашки","cup"],["history","История","history"],["restocks","Закупки","bag"],["bank","Банк","bank"],["settings","Настройки","gear"]];
 const app = document.getElementById("app");
 let state = loadState();
 let sync = loadSync();
-let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null };
+let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, sections: { people: true, sync: false, data: false } };
 let toastTimer = 0, syncTimer = 0, pulling = false;
 
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
@@ -105,7 +125,8 @@ function parseMoney(raw) { const t = String(raw ?? "").trim().replace(/\s/g, "")
 function parseMass(raw) { const t = String(raw ?? "").trim().toLowerCase().replace(/\s/g, "").replace(",", "."); if (!t) return 250; if (t.endsWith("кг") || t.endsWith("kg")) return Math.round(Number(t.replace(/кг|kg/g, "")) * 1000) || 250; const n = Number(t.replace(/г|g/g, "")); return Number.isFinite(n) && n > 0 ? Math.round(n) : 250; }
 function formatMass(g) { if (!g) return "—"; if (g >= 1000 && g % 1000 === 0) return (g / 1000) + " кг"; if (g >= 1000) return String(g / 1000).replace(".", ",") + " кг"; return g + " г"; }
 function rub(k) { return String((k || 0) / 100).replace(".", ","); }
-function colorOf(id) { return (COLORS.find((c) => c[0] === id) || COLORS[0])[1]; }
+function canonColor(id) { const mapped = LEGACY_COLOR[id] || id; return COLORS.some((c) => c[0] === mapped) ? mapped : "blue"; }
+function colorOf(id) { return (COLORS.find((c) => c[0] === canonColor(id)) || COLORS[0])[1]; }
 function personById(id) { return state.people.find((p) => p.id === id); }
 function nameOf(id) { return personById(id)?.name || "Кто-то"; }
 
@@ -117,12 +138,13 @@ function normalize(raw) {
     packs: (r.packs || []).map((p) => ({ id: p.id || uid(), name: p.name || "Кофе", priceKopecks: Number(p.priceKopecks) || 0, massGrams: Number(p.massGrams) || 250 })),
     periodsCovered: Math.max(1, Number(r.periodsCovered) || (r.packs || []).length || 1),
     coverageStart: r.coverageStart || "", splitMode: r.splitMode === "matched" ? "matched" : "pooled", note: r.note || "",
+    deposits: (Array.isArray(r.deposits) ? r.deposits : []).filter((d) => d && d.personId && Number(d.amountKopecks) > 0).map((d) => ({ personId: d.personId, amountKopecks: Math.round(Number(d.amountKopecks) || 0) })),
   }));
   let openings = Array.isArray(s.openings) ? s.openings : null;
   if (!openings) openings = restocks.flatMap((r) => r.packs[0] ? [{ id: "open-" + r.id, date: r.date, packId: r.packs[0].id }] : []);
   return {
-    people: (Array.isArray(s.people) ? s.people : []).map((p) => ({ id: p.id || uid(), name: p.name || "Без имени", color: COLORS.some((c) => c[0] === p.color) ? p.color : "cocoa", archived: Boolean(p.archived) })),
-    cups: (Array.isArray(s.cups) ? s.cups : []).filter((c) => c && c.cups > 0).map((c) => ({ date: c.date, personId: c.personId, cups: Math.max(0, Math.round(Number(c.cups) * 2) / 2) })),
+    people: (Array.isArray(s.people) ? s.people : []).map((p) => ({ id: p.id || uid(), name: p.name || "Без имени", color: canonColor(p.color), archived: Boolean(p.archived) })),
+    cups: (Array.isArray(s.cups) ? s.cups : []).filter((c) => c && c.cups > 0).map((c) => ({ date: c.date, personId: c.personId, cups: Math.max(0, Math.round(Number(c.cups) || 0)) })),
     restocks, openings: openings.map((o) => ({ id: o.id || uid(), date: o.date, packId: o.packId })),
     updatedAt: s.updatedAt || "1970-01-01T00:00:00.000Z",
   };
@@ -227,12 +249,60 @@ function settle(restock) {
   }
   return { restock, coverage, total, shares: allocate(total, cupsInRange(state.cups, coverage.start, coverage.end)) };
 }
-function settlements() { return sortRestocks(state.restocks).map(settle); }
+function depositMap(restock) {
+  const m = new Map();
+  for (const d of restock.deposits || []) {
+    if (!d || !d.personId) continue;
+    m.set(d.personId, (m.get(d.personId) || 0) + Math.max(0, Math.round(Number(d.amountKopecks) || 0)));
+  }
+  return m;
+}
+function applyBank(shares, carried, deposits) {
+  const next = new Map(carried);
+  const seen = new Set();
+  const lines = [];
+  for (const sh of shares) {
+    seen.add(sh.personId);
+    const prev = carried.get(sh.personId) || 0;
+    const deposit = deposits.get(sh.personId) || 0;
+    const available = prev + deposit;
+    const unpaid = Math.max(0, sh.shareKopecks - available);
+    const left = Math.max(0, available - sh.shareKopecks);
+    next.set(sh.personId, left);
+    lines.push({ personId: sh.personId, cups: sh.cups, shareKopecks: sh.shareKopecks, deposit, carriedIn: prev, unpaid, left });
+  }
+  for (const [pid, deposit] of deposits) {
+    if (seen.has(pid)) continue;
+    const prev = carried.get(pid) || 0;
+    const left = prev + deposit;
+    next.set(pid, left);
+    lines.push({ personId: pid, cups: 0, shareKopecks: 0, deposit, carriedIn: prev, unpaid: 0, left });
+  }
+  return { lines, carried: next };
+}
+function bankRun(list) {
+  let carried = new Map();
+  const steps = [];
+  for (const restock of sortRestocks(list)) {
+    const s = settle(restock);
+    const applied = applyBank(s.shares, carried, depositMap(restock));
+    carried = applied.carried;
+    steps.push({ restock, coverage: s.coverage, total: s.total, lines: applied.lines });
+  }
+  return { carried, steps };
+}
+function bankBalances() {
+  const { carried } = bankRun(state.restocks);
+  return state.people.map((p) => ({ person: p, left: carried.get(p.id) || 0 }));
+}
 function balances() {
   const net = new Map(state.people.map((p) => [p.id, 0]));
-  for (const s of settlements()) {
-    net.set(s.restock.buyerId, (net.get(s.restock.buyerId) || 0) + s.total);
-    for (const sh of s.shares) net.set(sh.personId, (net.get(sh.personId) || 0) - sh.shareKopecks);
+  for (const s of bankRun(state.restocks).steps) {
+    for (const line of s.lines) {
+      if (!line.unpaid || line.personId === s.restock.buyerId) continue;
+      net.set(line.personId, (net.get(line.personId) || 0) - line.unpaid);
+      net.set(s.restock.buyerId, (net.get(s.restock.buyerId) || 0) + line.unpaid);
+    }
   }
   return state.people.map((p) => ({ person: p, net: net.get(p.id) || 0 }));
 }
@@ -270,7 +340,7 @@ function parseCups(raw) {
   if (!t) return 0;
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 2) / 2;
+  return Math.round(n);
 }
 function formatCups(n) { const v = Number(n) || 0; return Number.isInteger(v) ? String(v) : String(v).replace(".", ","); }
 function setCups(date, personId, n) {
@@ -375,41 +445,49 @@ function readRestock(form, draft) {
     p.priceKopecks = parseMoney(form["pprice" + i].value);
     p.massGrams = parseMass(form["pmass" + i].value);
   });
+  draft.deposits = [...form.querySelectorAll("[data-dep]")].map((el) => ({ personId: el.dataset.dep, amountKopecks: parseMoney(el.value) })).filter((d) => d.amountKopecks > 0);
 }
 function blankPack() { const prev = lastPackDefaults(); return { id: uid(), name: prev?.name || "", priceKopecks: prev?.priceKopecks || 0, massGrams: prev?.massGrams || 250 }; }
 function openRestock(existing) {
   if (existing) ui.restockDraft = JSON.parse(JSON.stringify(existing));
-  else ui.restockDraft = { id: null, date: todayISO(), buyerId: (state.people.find((p) => !p.archived) || state.people[0] || {}).id || "", packs: [blankPack()], periodsCovered: 1, splitMode: "pooled", note: "" };
+  else ui.restockDraft = { id: null, date: todayISO(), buyerId: (state.people.find((p) => !p.archived) || state.people[0] || {}).id || "", packs: [blankPack()], periodsCovered: 1, splitMode: "pooled", note: "", deposits: [] };
   ui.sheet = "restock"; render();
 }
 function saveRestock() {
   const draft = ui.restockDraft; readRestock(document.getElementById("restock-form"), draft);
   if (!draft.buyerId) { toast("Добавьте участника в настройках"); return; }
-  const row = { id: draft.id || uid(), date: draft.date || todayISO(), buyerId: draft.buyerId, packs: draft.packs.map((p) => ({ id: p.id || uid(), name: p.name, priceKopecks: p.priceKopecks, massGrams: p.massGrams || 250 })), periodsCovered: draft.periodsCovered || draft.packs.length, splitMode: draft.splitMode, note: draft.note || "" };
+  const row = { id: draft.id || uid(), date: draft.date || todayISO(), buyerId: draft.buyerId, packs: draft.packs.map((p) => ({ id: p.id || uid(), name: p.name, priceKopecks: p.priceKopecks, massGrams: p.massGrams || 250 })), periodsCovered: draft.periodsCovered || draft.packs.length, splitMode: draft.splitMode, note: draft.note || "", deposits: (draft.deposits || []).filter((d) => d.amountKopecks > 0) };
   if (draft.id) state.restocks = state.restocks.map((r) => r.id === draft.id ? row : r); else state.restocks.push(row);
   const alive = new Set(state.restocks.flatMap((r) => r.packs.map((p) => p.id)));
   state.openings = state.openings.filter((o) => alive.has(o.packId));
   ui.sheet = null; ui.restockDraft = null; touch(); toast("Закупка сохранена"); render();
 }
 function previewShares(draft) {
-  const fake = { id: draft.id || "preview", date: draft.date || todayISO(), buyerId: draft.buyerId, packs: draft.packs, periodsCovered: draft.periodsCovered || draft.packs.length || 1, splitMode: draft.splitMode, note: "" };
+  const fake = { id: draft.id || "preview", date: draft.date || todayISO(), buyerId: draft.buyerId, packs: draft.packs, periodsCovered: draft.periodsCovered || draft.packs.length || 1, splitMode: draft.splitMode, note: "", deposits: draft.deposits || [] };
   const saved = state.restocks;
   state.restocks = [...saved.filter((r) => r.id !== fake.id), fake];
   try { return settle(fake); } finally { state.restocks = saved; }
 }
+function previewCarry(draft) {
+  const prior = state.restocks.filter((r) => r.id !== draft.id);
+  const { carried } = bankRun(prior);
+  const settlement = previewShares(draft);
+  return applyBank(settlement.shares, carried, depositMap({ deposits: draft.deposits || [] }));
+}
+function ico(paths) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`; }
 function render(resetScroll) {
   const prev = app.querySelector("main");
   const top = !resetScroll && prev ? prev.scrollTop : 0;
-  app.innerHTML = `<header><div class="brand"><div class="mark">☕</div><div><h1>Кофе-касса</h1><p>кто сколько должен за пачку</p></div></div><button class="btn sm" type="button" data-act="add-restock">Закупка</button></header><main>${view(ui.tab)}</main><nav>${TABS.map(([id, label]) => `<button type="button" data-tab="${id}" class="${ui.tab === id ? "on" : ""}">${label}</button>`).join("")}</nav>${ui.sheet === "restock" ? restockSheet() : ""}${ui.sheet === "opening" ? openingSheet() : ""}`;
+  app.innerHTML = `<header><div class="brand"><div class="mark">${ico(ICONS.cup)}</div><div><h1>Кофе-касса</h1><p>кто сколько должен за пачку</p></div></div><button class="btn sm" type="button" data-act="add-restock">Закупка</button></header><main>${view(ui.tab)}</main><nav>${TABS.map(([id, label, glyph]) => `<button type="button" data-tab="${id}" class="${ui.tab === id ? "on" : ""}">${ico(ICONS[glyph])}<span>${label}</span></button>`).join("")}</nav>${ui.sheet === "restock" ? restockSheet() : ""}${ui.sheet === "opening" ? openingSheet() : ""}`;
   const main = app.querySelector("main");
   if (main) main.scrollTop = top;
 }
 function stepper(date, person) {
   const n = cupsOn(date, person.id);
-  return `<span class="step"><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="-0.5">−</button><input class="cup-input" inputmode="decimal" enterkeyhint="done" aria-label="Чашки" data-date="${date}" data-id="${person.id}" value="${esc(formatCups(n))}" /><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="0.5">+</button></span>`;
+  return `<span class="step"><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="-1">−</button><input class="cup-input" inputmode="numeric" enterkeyhint="done" aria-label="Чашки" data-date="${date}" data-id="${person.id}" value="${esc(formatCups(n))}" /><button type="button" data-act="cup" data-date="${date}" data-id="${person.id}" data-d="1">+</button></span>`;
 }
-function personLine(p) { return `<span class="row grow"><span class="dot" style="background:${colorOf(p.color)}"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span></span>`; }
-function view(tab) { if (tab === "balance") return viewBalance(); if (tab === "cups") return viewCups(); if (tab === "history") return viewHistory(); if (tab === "restocks") return viewRestocks(); return viewSettings(); }
+function personLine(p) { return `<span class="row grow"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span></span>`; }
+function view(tab) { if (tab === "balance") return viewBalance(); if (tab === "cups") return viewCups(); if (tab === "history") return viewHistory(); if (tab === "restocks") return viewRestocks(); if (tab === "bank") return viewBank(); return viewSettings(); }
 function viewBalance() {
   const active = state.people.filter((p) => !p.archived); const today = todayISO();
   const rows = balances().sort((a, b) => b.net - a.net); const moves = transfers(rows); const open = openPeriod();
@@ -460,7 +538,7 @@ function viewHistory() {
     <label class="lbl">Кто</label><select class="field" id="who"><option value="all" ${ui.personId === "all" ? "selected" : ""}>Все</option>${state.people.map((p) => `<option value="${p.id}" ${ui.personId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
     <div class="card" style="margin-top:12px"><b>${cupsWord(total)}</b><div class="muted">${start ? formatDayShort(start) + " — " + formatDayShort(addDays(end, -1)) : "Нет периода. Откройте пачку в календаре."}</div></div>
     ${shown.map((r) => `<div class="card split"><span>${esc(r.p.name)}</span><b>${cupsWord(r.cups)}</b></div>`).join("")}
-    ${ui.personId === "all" ? `<p class="muted">Выберите человека, чтобы править чашки по дням.</p>` : `<p class="muted">Число можно вписать с клавиатуры. Половина чашки — 0,5.</p>`}
+    ${ui.personId === "all" ? `<p class="muted">Выберите человека, чтобы править чашки по дням.</p>` : `<p class="muted">Число можно вписать с клавиатуры. Шаг кнопками — 1 чашка.</p>`}
     ${editDays.map(([date, n]) => ui.personId === "all"
       ? `<div class="split" style="padding:4px 2px"><span class="muted">${formatDayShort(date)}</span><span>${formatCups(n)}</span></div>`
       : `<div class="card row"><span class="grow">${formatDayShort(date)}</span>${stepper(date, { id: ui.personId })}</div>`).join("")}`;
@@ -468,35 +546,59 @@ function viewHistory() {
 function viewRestocks() {
   const list = sortRestocks(state.restocks).slice().reverse();
   if (!list.length) return `<h2>Закупки</h2><p class="sub">Пачки с ценой и массой</p><div class="card muted">Пока пусто.</div><button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
-  return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p>` + list.map((r) => {
-    const s = settle(r);
-    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.shares.filter((x) => x.shareKopecks || x.cups).map((x) => `<div class="split"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.shareKopecks)}</span></div>`).join("")}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
+  return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p>` + bankRun(state.restocks).steps.slice().reverse().map((s) => {
+    const r = s.restock;
+    const paid = s.lines.filter((l) => l.deposit).map((l) => esc(nameOf(l.personId)) + " внёс " + money(l.deposit)).join("<br>");
+    const carry = s.lines.filter((l) => l.left).map((l) => esc(nameOf(l.personId)) + " перенос " + money(l.left)).join("<br>");
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.lines.filter((x) => x.shareKopecks || x.cups).map((x) => `<div class="split"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.shareKopecks)}</span></div>`).join("")}${paid ? `<div class="muted" style="margin-top:6px">${paid}</div>` : ""}${carry ? `<div class="money-pos" style="margin-top:4px">${carry}</div>` : ""}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
   }).join("") + `<button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
 }
+function viewBank() {
+  const rows = bankBalances().sort((a, b) => b.left - a.left);
+  const total = rows.reduce((s, r) => s + r.left, 0);
+  return `<h2>Банк</h2><p class="sub">Остаток каждого. Если человек внёс больше своей доли, лишнее ждёт следующую закупку.</p>
+    <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
+    ${rows.length ? rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("") : `<div class="card muted">Добавьте участников в настройках.</div>`}
+    <p class="help">Сумму вносят в закупке, в блоке «Кто сколько внёс».</p>`;
+}
 function viewSettings() {
-  const people = state.people.map((p) => `<div class="card" style="${p.archived ? "opacity:.6" : ""}"><div class="row"><span class="dot" style="background:${colorOf(p.color)}"></span><input class="field" data-person="${p.id}" value="${esc(p.name)}" aria-label="Имя" /><button class="btn-ghost sm" type="button" data-act="del-person" data-id="${p.id}">✕</button></div><div class="swatches">${COLORS.map(([id, hex, label]) => `<button type="button" title="${label}" data-act="color" data-id="${p.id}" data-color="${id}" class="${p.color === id ? "on" : ""}" style="background:${hex}"></button>`).join("")}</div><label class="row" style="margin-top:8px;font-size:14px"><input type="checkbox" data-act="archive" data-id="${p.id}" ${p.archived ? "checked" : ""}/> Не пьёт сейчас</label></div>`).join("");
-  return `<h2>Настройки</h2><p class="sub">Люди и общая копилка. Версия ${APP_VERSION}</p><h3>Участники</h3>
-    <form id="add-person" class="row" style="margin-bottom:10px"><input class="field" name="name" placeholder="Имя" aria-label="Имя нового участника" /><button class="btn" type="submit">Добавить</button></form>
-    ${people || `<div class="card muted">Пока никого нет.</div>`}
-    <h3>Синхронизация JSONBin</h3>
-    <div class="card"><p class="help">Ключ и пароль остаются в этом браузере. В копилке только чашки, люди и закупки. На другом телефоне введите те же ключ, ID и пароль.</p>
+  const people = state.people.map((p) => `<div class="card" style="${p.archived ? "opacity:.6" : ""}"><div class="row"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><input class="field" data-person="${p.id}" value="${esc(p.name)}" aria-label="Имя" /><button class="btn-ghost sm" type="button" data-act="del-person" data-id="${p.id}">✕</button></div><div class="swatches">${COLORS.map(([id, hex, label]) => `<button type="button" title="${label}" data-act="color" data-id="${p.id}" data-color="${id}" class="${p.color === id ? "on" : ""}" style="background:${hex}"></button>`).join("")}</div><label class="row" style="margin-top:8px;font-size:14px"><input type="checkbox" data-act="archive" data-id="${p.id}" ${p.archived ? "checked" : ""}/> Не пьёт сейчас</label></div>`).join("");
+  const peopleBody = `<form id="add-person" class="row" style="margin-bottom:10px"><input class="field" name="name" placeholder="Имя" aria-label="Имя нового участника" /><button class="btn" type="submit">Добавить</button></form>${people || `<div class="card muted">Пока никого нет.</div>`}`;
+  const syncBody = `<p class="help">Ключ и пароль остаются в этом браузере. В облаке только чашки, люди, закупки и банк.</p>
       <label class="lbl">Мастер-ключ</label><input class="field" id="masterKey" type="password" autocomplete="off" value="${esc(sync.masterKey)}" />
       <label class="lbl">ID копилки</label><input class="field" id="binId" autocomplete="off" value="${esc(sync.binId)}" placeholder="создастся кнопкой ниже" />
       <label class="lbl">Пароль шифрования (необязательно)</label><input class="field" id="binPassword" type="password" autocomplete="off" value="${esc(sync.password)}" />
       <label class="row" style="margin:10px 0;font-size:14px"><input id="autoSync" type="checkbox" ${sync.autoSync ? "checked" : ""}/> Отправлять изменения сама</label>
       <div class="row" style="flex-wrap:wrap"><button class="btn sm" type="button" data-act="bin-create">Создать копилку</button><button class="btn-ghost sm" type="button" data-act="bin-push">Сохранить</button><button class="btn-ghost sm" type="button" data-act="bin-pull">Загрузить</button></div>
       <p class="muted" id="sync-status">${sync.last ? "Последний обмен: " + new Date(sync.last).toLocaleString("ru-RU") : "Ещё не синхронизировали"}</p>
-    </div>
-    <details class="help card"><summary>Как получить ключ JSONBin</summary><p>1. Зайдите на jsonbin.io.<br>2. API Keys → скопируйте X-Master-Key.<br>3. Вставьте его сюда и нажмите «Создать копилку».<br>4. ID сохранится сам. На втором устройстве впишите ключ, ID и тот же пароль, затем «Загрузить».</p></details>
-    <h3>Файл программы</h3>
-    <button class="btn" type="button" data-act="save-html">Сохранить HTML в Загрузки</button>
-    <p class="help">Откроется меню телефона. Выберите «Сохранить в файлы» или «Загрузки». Файл будет называться index.html.</p>
-    <h3>Файл данных</h3><div class="row"><button class="btn-ghost sm" type="button" data-act="export">Скачать JSON</button><button class="btn-ghost sm" type="button" data-act="import">Загрузить JSON</button></div><input id="import-file" type="file" accept="application/json" hidden />
-    <h3>Как обновить программу</h3><div class="card help">Замените на GitHub файл <b>index.html</b> новым. Люди и чашки не сотрутся: они в JSONBin. После замены откройте сайт — если включена автосинхронизация, данные подтянутся сами.</div>
-    <button class="btn-ghost" type="button" data-act="wipe">Очистить всё на этом устройстве</button>`;
+      <details class="help"><summary>Как получить ключ JSONBin</summary><p>1. Зайдите на jsonbin.io.<br>2. API Keys → скопируйте X-Master-Key.<br>3. Вставьте его сюда и нажмите «Создать копилку».<br>4. ID сохранится сам. На втором устройстве впишите ключ, ID и тот же пароль, затем «Загрузить».</p></details>`;
+  const dataBody = `<button class="btn" type="button" data-act="save-html">Сохранить HTML в Загрузки</button>
+      <p class="help">Откроется меню телефона. Выберите «Сохранить в файлы» или «Загрузки». Файл будет называться index.html.</p>
+      <div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="export">Скачать JSON</button><button class="btn-ghost sm" type="button" data-act="import">Загрузить JSON</button></div><input id="import-file" type="file" accept="application/json" hidden />
+      <div class="card help" style="margin-top:10px">Чтобы обновить программу, замените на GitHub файл <b>index.html</b>. Люди, чашки и банк не сотрутся: они в этом телефоне и в JSONBin.</div>
+      <button class="btn-ghost" type="button" data-act="wipe">Очистить всё на этом устройстве</button>`;
+  const open = (id) => ui.sections[id] ? " open" : "";
+  return `<h2>Настройки</h2><p class="sub">Разделы раскрываются по нажатию</p>
+    <details class="fold" data-fold="people"${open("people")}><summary>Настройка пользователей</summary><div class="body">${peopleBody}</div></details>
+    <details class="fold" data-fold="sync"${open("sync")}><summary>Синхронизация с облаком</summary><div class="body">${syncBody}</div></details>
+    <details class="fold" data-fold="data"${open("data")}><summary>Скачать данные</summary><div class="body">${dataBody}</div></details>
+    <p class="muted version">Версия ${APP_VERSION}</p>`;
 }
 function restockSheet() {
-  const d = ui.restockDraft; const people = state.people.filter((p) => !p.archived || p.id === d.buyerId); const live = previewShares(d);
+  const d = ui.restockDraft;
+  const people = state.people.filter((p) => !p.archived || p.id === d.buyerId);
+  const payers = state.people.filter((p) => !p.archived || (d.deposits || []).some((x) => x.personId === p.id));
+  const live = previewShares(d);
+  const carry = previewCarry(d);
+  const depValue = (id) => { const row = (d.deposits || []).find((x) => x.personId === id); return row && row.amountKopecks ? rub(row.amountKopecks) : ""; };
+  const lineText = (l) => {
+    const bits = [];
+    if (l.carriedIn) bits.push("прошлый остаток " + money(l.carriedIn));
+    if (l.deposit) bits.push("внёс " + money(l.deposit));
+    if (l.left) bits.push("перенос " + money(l.left));
+    else if (l.unpaid && l.personId !== d.buyerId) bits.push("должен " + money(l.unpaid));
+    return bits.join(" · ");
+  };
   return `<div class="sheet"><div class="panel"><div class="row"><h2 class="grow">${d.id ? "Закупка" : "Новая закупка"}</h2><button class="btn-ghost sm" type="button" data-act="close">Закрыть</button></div>
     <form id="restock-form"><label class="lbl">Дата</label><input class="field" name="date" type="date" value="${esc(d.date)}" />
       <label class="lbl">Кто купил</label><select class="field" name="buyerId">${people.map((p) => `<option value="${p.id}" ${p.id === d.buyerId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
@@ -504,8 +606,11 @@ function restockSheet() {
       <button class="btn-ghost" type="button" data-act="add-pack">Ещё пачка</button>
       <label class="lbl">Сколько последних периодов закрывает закупка</label><input class="field" name="periods" type="number" min="1" value="${d.periodsCovered || d.packs.length}" />
       <label class="row" style="margin-top:8px;font-size:14px"><input name="matched" type="checkbox" ${d.splitMode === "matched" ? "checked" : ""}/> Каждая пачка на свой период</label>
+      <h3>Кто сколько внёс</h3>
+      <p class="help">Сумма человека, не цена пачки. Если внёс больше своей доли, лишнее перейдёт на следующую закупку.</p>
+      ${payers.map((p) => `<label class="lbl">${esc(p.name)}, ₽</label><input class="field" data-dep="${p.id}" inputmode="decimal" placeholder="0" value="${esc(depValue(p.id))}" />`).join("")}
       <label class="lbl">Заметка</label><textarea class="field" name="note">${esc(d.note || "")}</textarea>
-      <div class="card"><div class="muted">Делится ${money(live.total)} за ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${live.shares.map((s) => `<div class="split"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><b>${money(s.shareKopecks)}</b></div>`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
+      <div class="card"><div class="muted">Делится ${money(live.total)} за ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${carry.lines.filter((s) => s.shareKopecks || s.cups || s.deposit || s.left).map((s) => `<div class="split"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><b>${money(s.shareKopecks)}</b></div>${lineText(s) ? `<div class="muted">${lineText(s)}</div>` : ""}`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
       <button class="btn" type="submit">Сохранить</button></form></div></div>`;
 }
 function openingSheet() {
