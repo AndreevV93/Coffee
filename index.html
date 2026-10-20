@@ -83,7 +83,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.20";
+const APP_VERSION = "2026.10.21";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -101,7 +101,7 @@ const TABS = [["balance","Касса","cash"],["cups","Чашки","cup"],["hist
 const app = document.getElementById("app");
 let state = loadState();
 let sync = loadSync();
-let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, sections: { people: true, sync: false, data: false } };
+let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, histMode: "short", histPrice: "", sections: { people: true, sync: false, data: false } };
 let toastTimer = 0, syncTimer = 0, pulling = false;
 
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
@@ -433,6 +433,8 @@ function capture() {
   if (hf) { ui.from = hf.value; ui.to = document.getElementById("hist-to").value; }
   const est = document.getElementById("estimate");
   if (est) ui.estimate = est.value;
+  const hp = document.getElementById("hist-price");
+  if (hp) ui.histPrice = hp.value;
 }
 function readRestock(form, draft) {
   draft.date = form.date.value; draft.buyerId = form.buyerId.value; draft.note = form.note.value;
@@ -512,18 +514,253 @@ function viewCups() {
     ${dayOpen.length ? dayOpen.map((o) => { const found = findPack(o.packId); const title = found ? found.pack.name + " · " + money(found.pack.priceKopecks) + " · " + formatMass(found.pack.massGrams) : "Пачка удалена"; return `<div class="card row"><span class="grow">${esc(title)}</span><button class="btn-ghost sm" type="button" data-act="del-open" data-id="${o.id}">Убрать</button></div>`; }).join("") : `<div class="card muted">В этот день пачку не открывали.</div>`}
     <button class="btn" type="button" data-act="open-pack">Открыть пачку</button>`;
 }
-function viewHistory() {
+function historySelection() {
   const periods = historyPeriods();
   if (!ui.periodId || (ui.periodId !== "custom" && !periods.some((p) => p.id === ui.periodId))) ui.periodId = (periods.find((p) => p.current) || periods.at(-1) || {}).id || "custom";
-  const custom = ui.periodId === "custom"; const period = periods.find((p) => p.id === ui.periodId);
+  const custom = ui.periodId === "custom";
+  const period = periods.find((p) => p.id === ui.periodId);
   const start = custom ? (ui.from || addDays(todayISO(), -30)) : period?.start;
   const end = custom ? (ui.to ? addDays(ui.to, 1) : addDays(todayISO(), 1)) : period?.end;
   if (!ui.from) ui.from = start || todayISO();
   if (!ui.to) ui.to = end ? addDays(end, -1) : todayISO();
-  const map = start && end ? cupsInRange(state.cups, start, end) : new Map();
-  const rows = state.people.filter((p) => !p.archived || (map.get(p.id) || 0) > 0).map((p) => ({ p, cups: map.get(p.id) || 0 })).sort((a, b) => b.cups - a.cups);
-  const shown = ui.personId === "all" ? rows : rows.filter((r) => r.p.id === ui.personId);
-  const total = shown.reduce((s, r) => s + r.cups, 0);
+  return { periods, custom, period, start, end, label: custom ? "Свой диапазон" : (period?.label || "Период") };
+}
+function historyPrice(sel) {
+  const manual = String(ui.histPrice ?? "").trim();
+  if (manual) return { kopecks: parseMoney(manual), source: "указана вручную" };
+  if (sel.period) {
+    const opening = state.openings.find((o) => o.id === sel.period.id);
+    const found = opening ? findPack(opening.packId) : null;
+    if (found) return { kopecks: found.pack.priceKopecks || 0, source: found.pack.name || "пачка" };
+  }
+  let sum = 0;
+  const names = [];
+  if (sel.start && sel.end) for (const r of state.restocks) {
+    const cov = computeCoverage(r);
+    if (cov.end > sel.start && cov.start < sel.end) { sum += totalKopecks(r); names.push(...r.packs.map((p) => p.name)); }
+  }
+  return { kopecks: sum, source: names.length ? names.join(", ") : "нет закупки на этот срок" };
+}
+function cupsByDay(start, end) {
+  const days = new Map();
+  for (const e of state.cups) {
+    if (!e.cups || !start || !end || e.date < start || e.date >= end) continue;
+    if (!days.has(e.date)) days.set(e.date, new Map());
+    const m = days.get(e.date);
+    m.set(e.personId, (m.get(e.personId) || 0) + e.cups);
+  }
+  return days;
+}
+function daySum(map) { return map ? [...map.values()].reduce((s, n) => s + n, 0) : 0; }
+function statBlock(sel, personId, priceInfo) {
+  const map = sel.start && sel.end ? cupsInRange(state.cups, sel.start, sel.end) : new Map();
+  const grand = [...map.values()].reduce((s, n) => s + n, 0);
+  const shares = priceInfo.kopecks ? allocate(priceInfo.kopecks, map) : [...map.entries()].map(([personId, cups]) => ({ personId, cups, shareKopecks: 0 }));
+  const rows = (personId ? shares.filter((s) => s.personId === personId) : shares).filter((s) => !personId ? (s.cups || s.shareKopecks) : true);
+  return { grand, rows, price: priceInfo };
+}
+const PDF_W = 1240, PDF_H = 1754, PDF_M = 64;
+function pdfFont(g, size, bold) { g.font = `${bold ? "600 " : ""}${size}px "Segoe UI", "DejaVu Sans", sans-serif`; }
+function newSheet() {
+  const c = document.createElement("canvas");
+  c.width = PDF_W; c.height = PDF_H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff6e8"; g.fillRect(0, 0, PDF_W, PDF_H);
+  g.fillStyle = "#4a2a18"; g.fillRect(0, 0, PDF_W, 22);
+  return { c, g, y: 78 };
+}
+function pdfDoc() { return { pages: [], page: newSheet() }; }
+function pdfBreak(doc, need) { if (doc.page.y + need > PDF_H - 48) { doc.pages.push(doc.page.c); doc.page = newSheet(); } }
+function pdfText(doc, text, size, color, bold) {
+  const max = PDF_W - PDF_M * 2;
+  const words = String(text).split(" ");
+  let line = "";
+  const paint = (value) => {
+    pdfBreak(doc, size + 14);
+    const g = doc.page.g;
+    pdfFont(g, size, bold);
+    g.fillStyle = color || "#2a1810";
+    g.fillText(value, PDF_M, doc.page.y);
+    doc.page.y += size + 12;
+  };
+  const g0 = doc.page.g;
+  pdfFont(g0, size, bold);
+  for (const w of words) {
+    const next = line ? line + " " + w : w;
+    if (g0.measureText(next).width > max && line) { paint(line); line = w; }
+    else line = next;
+  }
+  if (line) paint(line);
+}
+function pdfGap(doc, n) { doc.page.y += n; }
+function drawStatPdf(doc, sel, personId, priceInfo) {
+  const block = statBlock(sel, personId, priceInfo);
+  const who = personId ? nameOf(personId) : "Все";
+  pdfText(doc, personId ? "Статистика: " + who : "Общая статистика", 40, "#4a2a18", true);
+  pdfText(doc, sel.label + " · " + (sel.start ? formatDayShort(sel.start) + " — " + formatDayShort(addDays(sel.end, -1)) : "нет дат"), 26, "#7a5640");
+  pdfText(doc, "Цена: " + money(priceInfo.kopecks) + " · " + priceInfo.source, 24);
+  pdfText(doc, "Всего выпито: " + cupsWord(block.grand), 28, "#2a1810", true);
+  pdfGap(doc, 8);
+  if (!block.rows.length) pdfText(doc, "За этот срок чашек нет.", 24, "#7a5640");
+  for (const s of block.rows) {
+    const pct = block.grand ? Math.round((s.cups / block.grand) * 100) : 0;
+    pdfText(doc, nameOf(s.personId) + ": " + formatCups(s.cups) + " из " + formatCups(block.grand) + " · " + pct + "% · " + money(s.shareKopecks), 26, "#2a1810", true);
+    if (block.grand && priceInfo.kopecks) pdfText(doc, "Расчёт: " + formatCups(s.cups) + " / " + formatCups(block.grand) + " × " + money(priceInfo.kopecks), 22, "#7a5640");
+  }
+  pdfGap(doc, 16);
+}
+function drawCalPdf(doc, sel, personId) {
+  if (!sel.start || !sel.end) return;
+  const days = cupsByDay(sel.start, sel.end);
+  const endIncl = addDays(sel.end, -1);
+  pdfText(doc, personId ? nameOf(personId) + " — свои чашки / все чашки за день" : "Календарь: сколько чашек выпили все", 28, "#4a2a18", true);
+  let y = Number(sel.start.slice(0, 4)), m = Number(sel.start.slice(5, 7));
+  const lastKey = endIncl.slice(0, 7);
+  let guard = 0;
+  while (`${y}-${String(m).padStart(2, "0")}` <= lastKey && guard < 18) {
+    guard++;
+    const first = new Date(y, m - 1, 1);
+    const lead = (first.getDay() + 6) % 7;
+    const daysIn = new Date(y, m, 0).getDate();
+    const rows = Math.ceil((lead + daysIn) / 7);
+    pdfBreak(doc, 140 + rows * 118);
+    pdfText(doc, MONTHS[m - 1] + " " + y, 28, "#4a2a18", true);
+    const g = doc.page.g;
+    const top = doc.page.y;
+    const cw = (PDF_W - PDF_M * 2) / 7;
+    pdfFont(g, 18); g.fillStyle = "#7a5640";
+    DOW.forEach((d, i) => g.fillText(d, PDF_M + i * cw + 12, top));
+    for (let i = 0; i < lead + daysIn; i++) {
+      const col = i % 7, row = Math.floor(i / 7);
+      const x = PDF_M + col * cw, yy = top + 16 + row * 118;
+      g.fillStyle = "#fff"; g.strokeStyle = "#d4b896"; g.lineWidth = 2;
+      g.fillRect(x + 4, yy, cw - 8, 108); g.strokeRect(x + 4, yy, cw - 8, 108);
+      if (i < lead) continue;
+      const day = i - lead + 1;
+      const iso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const inRange = iso >= sel.start && iso < sel.end;
+      g.fillStyle = inRange ? "#2a1810" : "#c4ad96";
+      pdfFont(g, 22, true); g.fillText(String(day), x + 14, yy + 30);
+      if (!inRange) continue;
+      const bag = days.get(iso);
+      const total = daySum(bag);
+      const mine = personId ? (bag?.get(personId) || 0) : total;
+      pdfFont(g, personId ? 28 : 32, true);
+      g.fillStyle = mine ? "#4a2a18" : "#c4ad96";
+      g.fillText(personId ? formatCups(mine) + "/" + formatCups(total) : (total ? formatCups(total) : "·"), x + 14, yy + 78);
+    }
+    doc.page.y = top + 24 + rows * 118;
+    m += 1; if (m === 13) { m = 1; y += 1; }
+  }
+}
+async function canvasesToPdf(canvases) {
+  const images = [];
+  for (const c of canvases) {
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.86));
+    images.push({ w: c.width, h: c.height, buf: new Uint8Array(await blob.arrayBuffer()) });
+  }
+  const enc = new TextEncoder();
+  const chunks = [];
+  const offsets = [0];
+  let pos = 0;
+  const push = (data) => { const bytes = typeof data === "string" ? enc.encode(data) : data; chunks.push(bytes); pos += bytes.length; };
+  const obj = (n, body) => { offsets[n] = pos; push(`${n} 0 obj\n${body}\nendobj\n`); };
+  push("%PDF-1.4\n");
+  const kids = images.map((_, i) => `${3 + i * 3} 0 R`).join(" ");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${images.length} >>`);
+  images.forEach((p, i) => {
+    const pageId = 3 + i * 3, contentId = pageId + 1, imageId = pageId + 2;
+    obj(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents ${contentId} 0 R /Resources << /XObject << /Im0 ${imageId} 0 R >> >> >>`);
+    const stream = "q 595.28 0 0 841.89 0 0 cm /Im0 Do Q";
+    obj(contentId, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    offsets[imageId] = pos;
+    push(`${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.buf.length} >>\nstream\n`);
+    push(p.buf);
+    push("\nendstream\nendobj\n");
+  });
+  const xrefAt = pos;
+  const size = offsets.length;
+  let xref = `xref\n0 ${size}\n0000000000 65535 f \n`;
+  for (let i = 1; i < size; i++) xref += String(offsets[i] || 0).padStart(10, "0") + " 00000 n \n";
+  push(xref);
+  push(`trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF`);
+  return new Blob(chunks, { type: "application/pdf" });
+}
+async function savePdf(blob, filename) {
+  const file = new File([blob], filename, { type: "application/pdf" });
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("PDF сохранён");
+}
+async function finishPdf(doc, filename) {
+  doc.pages.push(doc.page.c);
+  await savePdf(await canvasesToPdf(doc.pages), filename);
+}
+function pdfName(parts) { return parts.join("-").replace(/[^\wа-яё.-]+/gi, "_").slice(0, 80) + ".pdf"; }
+async function buildHistoryPdf(scope) {
+  const sel = historySelection();
+  if (!sel.start || !sel.end) { toast("Нет периода"); return; }
+  if (scope === "one" && ui.personId === "all") { toast("Сначала выберите человека"); return; }
+  const priceInfo = historyPrice(sel);
+  const doc = pdfDoc();
+  const mode = ui.histMode === "full" ? "full" : "short";
+  if (scope !== "one") drawStatPdf(doc, sel, null, priceInfo);
+  if (scope === "one") drawStatPdf(doc, sel, ui.personId, priceInfo);
+  if (mode === "full" && scope !== "each") drawCalPdf(doc, sel, scope === "one" ? ui.personId : null);
+  if (scope === "each") {
+    const drinkers = state.people.filter((p) => (cupsInRange(state.cups, sel.start, sel.end).get(p.id) || 0) > 0 || !p.archived);
+    for (const p of drinkers) {
+      drawStatPdf(doc, sel, p.id, priceInfo);
+      if (mode === "full") drawCalPdf(doc, sel, p.id);
+    }
+    if (!drinkers.length) pdfText(doc, "Нет участников.", 24);
+  }
+  const who = scope === "one" ? nameOf(ui.personId) : scope === "each" ? "kazhdyy" : "vse";
+  await finishPdf(doc, pdfName(["kofe", who, mode, sel.start]));
+}
+function checkRows(step) {
+  const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
+  return step.lines.filter((l) => l.cups || l.shareKopecks || l.deposit).map((l) => ({ ...l, totalCups }));
+}
+function drawCheckPdf(doc, step) {
+  const r = step.restock;
+  const rows = checkRows(step);
+  const totalCups = rows.reduce((s, l) => s + l.cups, 0) || step.lines.reduce((s, l) => s + l.cups, 0);
+  pdfText(doc, "Чек закупки", 40, "#4a2a18", true);
+  pdfText(doc, formatDay(r.date) + " · купил " + nameOf(r.buyerId), 26);
+  pdfText(doc, r.packs.map((p) => p.name + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("; ") || "Пачка", 24);
+  pdfText(doc, "Период: " + formatDayShort(step.coverage.start) + " — " + formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end), 24, "#7a5640");
+  pdfText(doc, "Сумма закупки: " + money(step.total), 28, "#2a1810", true);
+  pdfText(doc, "Всего чашек за период: " + cupsWord(totalCups), 26, "#2a1810", true);
+  pdfGap(doc, 8);
+  if (!rows.length) pdfText(doc, "Чашек нет — сумма делится поровну между участниками.", 24, "#7a5640");
+  for (const l of rows) {
+    pdfText(doc, nameOf(l.personId) + ": " + formatCups(l.cups) + " из " + formatCups(totalCups) + " чашек · " + money(l.shareKopecks), 26, "#2a1810", true);
+    if (totalCups) pdfText(doc, "Откуда сумма: " + formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) + " = " + money(l.shareKopecks), 22, "#7a5640");
+    else pdfText(doc, "Чашек не было, доля поровну: " + money(l.shareKopecks), 22, "#7a5640");
+    if (l.deposit) pdfText(doc, "Внёс: " + money(l.deposit) + (l.left ? " · перенос " + money(l.left) : ""), 22, "#3f5c3a");
+  }
+  pdfGap(doc, 28);
+}
+async function buildCheckPdf(id) {
+  const steps = id ? bankRun(state.restocks).steps.filter((s) => s.restock.id === id) : bankRun(state.restocks).steps;
+  if (!steps.length) { toast("Нет закупок"); return; }
+  const doc = pdfDoc();
+  steps.forEach((s) => drawCheckPdf(doc, s));
+  await finishPdf(doc, pdfName(["kofe-chek", id || "vse", steps[0].restock.date]));
+}
+function viewHistory() {
+  const sel = historySelection();
+  const { periods, custom, start, end } = sel;
+  const priceInfo = historyPrice(sel);
+  const block = statBlock(sel, null, priceInfo);
+  const one = ui.personId === "all" ? null : block.rows.find((r) => r.personId === ui.personId) || { personId: ui.personId, cups: 0, shareKopecks: 0 };
   const by = new Map();
   if (start && end) for (const e of state.cups) { if (e.date < start || e.date >= end) continue; if (ui.personId !== "all" && e.personId !== ui.personId) continue; by.set(e.date, (by.get(e.date) || 0) + e.cups); }
   const days = [...by.entries()].sort((a, b) => a[0] < b[0] ? 1 : -1);
@@ -532,12 +769,51 @@ function viewHistory() {
     if (start && end) for (let d = addDays(end, -1); d >= start && list.length < 45; d = addDays(d, -1)) list.push([d, cupsOn(d, ui.personId)]);
     return list;
   })();
+  const calcRows = (ui.personId === "all" ? block.rows : (one ? [one] : [])).map((s) => {
+    const pct = block.grand ? Math.round((s.cups / block.grand) * 100) : 0;
+    const formula = block.grand && priceInfo.kopecks ? `${formatCups(s.cups)} / ${formatCups(block.grand)} × ${money(priceInfo.kopecks)}` : (block.grand ? "укажите цену — доля в рублях появится здесь" : "чашек нет, сумма делится поровну");
+    return `<div class="card"><div class="split"><span>${esc(nameOf(s.personId))}</span><b>${formatCups(s.cups)} из ${formatCups(block.grand)}</b></div><div class="muted">${pct}% · ${money(s.shareKopecks)}</div><div class="muted">${formula}</div></div>`;
+  }).join("");
+  let calendar = "";
+  if (ui.histMode === "full" && start && end) {
+    const dayMap = cupsByDay(start, end);
+    const endIncl = addDays(end, -1);
+    let y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7));
+    const lastKey = endIncl.slice(0, 7);
+    const blocks = [];
+    let guard = 0;
+    while (`${y}-${String(m).padStart(2, "0")}` <= lastKey && guard < 8) {
+      guard++;
+      const first = new Date(y, m - 1, 1);
+      const lead = (first.getDay() + 6) % 7;
+      const count = new Date(y, m, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < lead; i++) cells.push(`<div class="day off"></div>`);
+      for (let day = 1; day <= count; day++) {
+        const iso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const inRange = iso >= start && iso < end;
+        const bag = dayMap.get(iso);
+        const total = daySum(bag);
+        const mine = ui.personId === "all" ? total : (bag?.get(ui.personId) || 0);
+        const mark = !inRange ? "" : ui.personId === "all" ? (total ? formatCups(total) : "") : (total || mine ? formatCups(mine) + "/" + formatCups(total) : "");
+        cells.push(`<div class="day ${inRange ? "" : "off"}">${day}<div class="n">${mark || "&nbsp;"}</div></div>`);
+      }
+      blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
+      m += 1; if (m === 13) { m = 1; y += 1; }
+    }
+    calendar = `<p class="muted">${ui.personId === "all" ? "На дне — сколько чашек выпили все." : "На дне — чашки человека / все чашки за этот день."}</p>` + blocks.join("");
+  }
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
     <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
     ${custom ? `<div class="row" style="margin-top:8px"><input class="field" id="hist-from" type="date" value="${esc(ui.from)}"><input class="field" id="hist-to" type="date" value="${esc(ui.to)}"></div><button class="btn sm" style="margin-top:8px" type="button" data-act="hist-apply">Показать</button>` : ""}
     <label class="lbl">Кто</label><select class="field" id="who"><option value="all" ${ui.personId === "all" ? "selected" : ""}>Все</option>${state.people.map((p) => `<option value="${p.id}" ${ui.personId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
-    <div class="card" style="margin-top:12px"><b>${cupsWord(total)}</b><div class="muted">${start ? formatDayShort(start) + " — " + formatDayShort(addDays(end, -1)) : "Нет периода. Откройте пачку в календаре."}</div></div>
-    ${shown.map((r) => `<div class="card split"><span>${esc(r.p.name)}</span><b>${cupsWord(r.cups)}</b></div>`).join("")}
+    <div class="row" style="margin-top:10px"><button class="${ui.histMode === "short" ? "btn" : "btn-ghost"} sm" type="button" data-act="hist-mode" data-mode="short">Сжатая</button><button class="${ui.histMode === "full" ? "btn" : "btn-ghost"} sm" type="button" data-act="hist-mode" data-mode="full">С календарём</button></div>
+    <label class="lbl">Цена для расчёта, ₽</label><input class="field" id="hist-price" inputmode="decimal" placeholder="${priceInfo.kopecks ? esc(rub(priceInfo.kopecks)) : "0"}" value="${esc(ui.histPrice || "")}" />
+    <p class="muted">Сейчас ${money(priceInfo.kopecks)} · ${esc(priceInfo.source)}. Пустое поле берёт цену пачки.</p>
+    <div class="card" style="margin-top:12px"><b>${one ? formatCups(one.cups) + " из " + formatCups(block.grand) : cupsWord(block.grand)}</b><div class="muted">${start ? formatDayShort(start) + " — " + formatDayShort(addDays(end, -1)) : "Нет периода. Откройте пачку в календаре."}</div></div>
+    ${calcRows}
+    <div class="row" style="flex-wrap:wrap;margin:8px 0 12px"><button class="btn sm" type="button" data-act="pdf-hist" data-scope="all">PDF всем</button><button class="btn-ghost sm" type="button" data-act="pdf-hist" data-scope="one">PDF выбранному</button><button class="btn-ghost sm" type="button" data-act="pdf-hist" data-scope="each">PDF каждому</button></div>
+    ${calendar}
     ${ui.personId === "all" ? `<p class="muted">Выберите человека, чтобы править чашки по дням.</p>` : `<p class="muted">Число можно вписать с клавиатуры. Шаг кнопками — 1 чашка.</p>`}
     ${editDays.map(([date, n]) => ui.personId === "all"
       ? `<div class="split" style="padding:4px 2px"><span class="muted">${formatDayShort(date)}</span><span>${formatCups(n)}</span></div>`
@@ -556,10 +832,20 @@ function viewRestocks() {
 function viewBank() {
   const rows = bankBalances().sort((a, b) => b.left - a.left);
   const total = rows.reduce((s, r) => s + r.left, 0);
+  const steps = bankRun(state.restocks).steps.slice().reverse();
+  const checks = steps.map((step) => {
+    const r = step.restock;
+    const lines = checkRows(step);
+    const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
+    const body = lines.map((l) => `<div class="card" style="margin-bottom:6px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.shareKopecks)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div><div class="muted">${totalCups ? formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) : "Чашек нет, доля поровну"}</div>${l.deposit ? `<div class="muted">Внёс ${money(l.deposit)}${l.left ? " · перенос " + money(l.left) : ""}</div>` : ""}</div>`).join("");
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек PDF</button></div>`;
+  }).join("");
   return `<h2>Банк</h2><p class="sub">Остаток каждого. Если человек внёс больше своей доли, лишнее ждёт следующую закупку.</p>
     <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
     ${rows.length ? rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("") : `<div class="card muted">Добавьте участников в настройках.</div>`}
-    <p class="help">Сумму вносят в закупке, в блоке «Кто сколько внёс».</p>`;
+    <h3>Чеки закупок</h3>
+    <p class="help">Сумма человека = его чашки / все чашки периода × цена закупки.</p>
+    ${steps.length ? `<button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button>` + checks : `<div class="card muted">Чек появится после закупки.</div>`}`;
 }
 function viewSettings() {
   const people = state.people.map((p) => `<div class="card" style="${p.archived ? "opacity:.6" : ""}"><div class="row"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><input class="field" data-person="${p.id}" value="${esc(p.name)}" aria-label="Имя" /><button class="btn-ghost sm" type="button" data-act="del-person" data-id="${p.id}">✕</button></div><div class="swatches">${COLORS.map(([id, hex, label]) => `<button type="button" title="${label}" data-act="color" data-id="${p.id}" data-color="${id}" class="${p.color === id ? "on" : ""}" style="background:${hex}"></button>`).join("")}</div><label class="row" style="margin-top:8px;font-size:14px"><input type="checkbox" data-act="archive" data-id="${p.id}" ${p.archived ? "checked" : ""}/> Не пьёт сейчас</label></div>`).join("");
@@ -693,6 +979,9 @@ app.addEventListener("click", (e) => {
   if (act === "import") { document.getElementById("import-file").click(); return; }
   if (act === "wipe") { if (!confirm("Очистить данные на этом устройстве? JSONBin не удалится.")) return; state = emptyState(); state.updatedAt = new Date().toISOString(); saveLocal(); render(); return; }
   if (act === "hist-apply") render();
+  if (act === "hist-mode") { ui.histMode = el.dataset.mode === "full" ? "full" : "short"; render(); return; }
+  if (act === "pdf-hist") { buildHistoryPdf(el.dataset.scope).catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "pdf-check") { buildCheckPdf(el.dataset.id || "").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
 });
 app.addEventListener("submit", (e) => {
   capture();
@@ -718,6 +1007,8 @@ app.addEventListener("change", (e) => {
   if (t.id === "period") { ui.periodId = t.value; render(); return; }
   if (t.id === "who") { ui.personId = t.value; render(); return; }
   if (t.id === "estimate") { ui.estimate = t.value; render(); return; }
+  if (t.id === "hist-price") { ui.histPrice = t.value; render(); return; }
+  if (t.dataset && t.dataset.dep && ui.restockDraft) { readRestock(document.getElementById("restock-form"), ui.restockDraft); render(); return; }
   if (t.id === "import-file" && t.files && t.files[0]) {
     t.files[0].text().then((text) => { applyDoc(JSON.parse(text)); touch(); toast("JSON загружен"); }).catch(() => toast("Не удалось прочитать файл"));
   }
@@ -731,6 +1022,10 @@ app.addEventListener("change", (e) => {
     }
   }
 });
+app.addEventListener("toggle", (e) => {
+  const d = e.target;
+  if (d && d.dataset && d.dataset.fold) ui.sections[d.dataset.fold] = d.open;
+}, true);
 app.addEventListener("pointerdown", (e) => {
   const btn = e.target.closest && e.target.closest('[data-act="cup"]');
   if (!btn || !btn.parentElement) return;
