@@ -77,13 +77,17 @@
   .fold:not([open]) > summary:after { content: "▸"; }
   .fold .body { padding: 0 12px 12px; }
   .version { text-align: center; margin: 18px 0 4px; }
+  .menu-pop { position: fixed; z-index: 25; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 24px), calc(var(--phone) - 24px)); }
+  .menu-pop .card { box-shadow: 0 10px 28px rgba(28, 18, 12, 0.28); max-height: 46dvh; overflow: auto; margin: 0; }
+  .menu-pop button { display: flex; width: 100%; text-align: left; background: transparent; border: 0; border-top: 1px solid var(--line); padding: 12px 2px; align-items: center; gap: 8px; }
+  .pdf-page { width: 100%; display: block; background: #fff; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.21";
+const APP_VERSION = "2026.10.23";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -101,7 +105,8 @@ const TABS = [["balance","Касса","cash"],["cups","Чашки","cup"],["hist
 const app = document.getElementById("app");
 let state = loadState();
 let sync = loadSync();
-let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, histMode: "short", histPrice: "", sections: { people: true, sync: false, data: false } };
+let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, histMode: "short", histPrice: "", pdfMenu: false, checkMenu: "", pdfPreview: false, sections: { people: true, sync: false, data: false } };
+let pdfDraft = null;
 let toastTimer = 0, syncTimer = 0, pulling = false;
 
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
@@ -480,9 +485,21 @@ function ico(paths) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="
 function render(resetScroll) {
   const prev = app.querySelector("main");
   const top = !resetScroll && prev ? prev.scrollTop : 0;
-  app.innerHTML = `<header><div class="brand"><div class="mark">${ico(ICONS.cup)}</div><div><h1>Кофе-касса</h1><p>кто сколько должен за пачку</p></div></div><button class="btn sm" type="button" data-act="add-restock">Закупка</button></header><main>${view(ui.tab)}</main><nav>${TABS.map(([id, label, glyph]) => `<button type="button" data-tab="${id}" class="${ui.tab === id ? "on" : ""}">${ico(ICONS[glyph])}<span>${label}</span></button>`).join("")}</nav>${ui.sheet === "restock" ? restockSheet() : ""}${ui.sheet === "opening" ? openingSheet() : ""}`;
+  app.innerHTML = `<header><div class="brand"><div class="mark">${ico(ICONS.cup)}</div><div><h1>Кофе-касса</h1><p>кто сколько должен за пачку</p></div></div><button class="btn sm" type="button" data-act="add-restock">Закупка</button></header><main>${view(ui.tab)}</main><nav>${TABS.map(([id, label, glyph]) => `<button type="button" data-tab="${id}" class="${ui.tab === id ? "on" : ""}">${ico(ICONS[glyph])}<span>${label}</span></button>`).join("")}</nav>${ui.pdfMenu ? pdfPersonMenu() : ""}${ui.checkMenu ? checkPersonMenu() : ""}${ui.sheet === "restock" ? restockSheet() : ""}${ui.sheet === "opening" ? openingSheet() : ""}${ui.pdfPreview ? pdfPreviewSheet() : ""}`;
   const main = app.querySelector("main");
   if (main) main.scrollTop = top;
+}
+function pdfPersonMenu() {
+  const people = state.people.filter((p) => !p.archived);
+  return `<div class="menu-pop" id="pdf-menu"><div class="card"><b>Кому сделать PDF</b>${people.length ? people.map((p) => `<button type="button" data-act="pdf-person" data-id="${p.id}"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span>${esc(p.name)}</span></button>`).join("") : `<p class="muted">Сначала добавьте участников</p>`}</div></div>`;
+}
+function checkPersonMenu() {
+  const people = state.people.filter((p) => !p.archived);
+  return `<div class="menu-pop" id="check-menu"><div class="card"><b>Кому сделать чек</b>${people.length ? people.map((p) => `<button type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span>${esc(p.name)}</span></button>`).join("") : `<p class="muted">Сначала добавьте участников</p>`}</div></div>`;
+}
+function pdfPreviewSheet() {
+  if (!pdfDraft) return "";
+  return `<div class="sheet"><div class="panel"><div class="row"><h2 class="grow">Предпросмотр</h2><button class="btn-ghost sm" type="button" data-act="pdf-close">Закрыть</button></div><p class="muted">${esc(pdfDraft.filename)} · ${pdfDraft.urls.length} стр.</p>${pdfDraft.urls.map((u, i) => `<img class="pdf-page" alt="Страница ${i + 1}" src="${u}" />`).join("")}<button class="btn" type="button" data-act="pdf-save">Сохранить PDF</button></div></div>`;
 }
 function stepper(date, person) {
   const n = cupsOn(date, person.id);
@@ -593,6 +610,17 @@ function pdfText(doc, text, size, color, bold) {
   if (line) paint(line);
 }
 function pdfGap(doc, n) { doc.page.y += n; }
+function pdfRule(doc) {
+  pdfBreak(doc, 24);
+  const g = doc.page.g;
+  g.strokeStyle = "#e4d3be";
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(PDF_M, doc.page.y);
+  g.lineTo(PDF_W - PDF_M, doc.page.y);
+  g.stroke();
+  doc.page.y += 36;
+}
 function drawStatPdf(doc, sel, personId, priceInfo) {
   const block = statBlock(sel, personId, priceInfo);
   const who = personId ? nameOf(personId) : "Все";
@@ -602,11 +630,13 @@ function drawStatPdf(doc, sel, personId, priceInfo) {
   pdfText(doc, "Всего выпито: " + cupsWord(block.grand), 28, "#2a1810", true);
   pdfGap(doc, 8);
   if (!block.rows.length) pdfText(doc, "За этот срок чашек нет.", 24, "#7a5640");
-  for (const s of block.rows) {
+  block.rows.forEach((s, i) => {
+    if (!personId && i) pdfRule(doc);
     const pct = block.grand ? Math.round((s.cups / block.grand) * 100) : 0;
     pdfText(doc, nameOf(s.personId) + ": " + formatCups(s.cups) + " из " + formatCups(block.grand) + " · " + pct + "% · " + money(s.shareKopecks), 26, "#2a1810", true);
     if (block.grand && priceInfo.kopecks) pdfText(doc, "Расчёт: " + formatCups(s.cups) + " / " + formatCups(block.grand) + " × " + money(priceInfo.kopecks), 22, "#7a5640");
-  }
+    if (!personId) pdfGap(doc, 18);
+  });
   pdfGap(doc, 16);
 }
 function drawCalPdf(doc, sel, personId) {
@@ -700,19 +730,23 @@ async function savePdf(blob, filename) {
 }
 async function finishPdf(doc, filename) {
   doc.pages.push(doc.page.c);
-  await savePdf(await canvasesToPdf(doc.pages), filename);
+  pdfDraft = { filename, blob: await canvasesToPdf(doc.pages), urls: doc.pages.map((c) => c.toDataURL("image/jpeg", 0.8)) };
+  ui.pdfPreview = true;
+  ui.pdfMenu = false;
+  render();
 }
 function pdfName(parts) { return parts.join("-").replace(/[^\wа-яё.-]+/gi, "_").slice(0, 80) + ".pdf"; }
-async function buildHistoryPdf(scope) {
+async function buildHistoryPdf(scope, personId) {
   const sel = historySelection();
   if (!sel.start || !sel.end) { toast("Нет периода"); return; }
-  if (scope === "one" && ui.personId === "all") { toast("Сначала выберите человека"); return; }
+  const whoId = personId || "";
+  if (scope === "one" && !whoId) { toast("Выберите человека"); return; }
   const priceInfo = historyPrice(sel);
   const doc = pdfDoc();
   const mode = ui.histMode === "full" ? "full" : "short";
   if (scope !== "one") drawStatPdf(doc, sel, null, priceInfo);
-  if (scope === "one") drawStatPdf(doc, sel, ui.personId, priceInfo);
-  if (mode === "full" && scope !== "each") drawCalPdf(doc, sel, scope === "one" ? ui.personId : null);
+  if (scope === "one") drawStatPdf(doc, sel, whoId, priceInfo);
+  if (mode === "full" && scope !== "each") drawCalPdf(doc, sel, scope === "one" ? whoId : null);
   if (scope === "each") {
     const drinkers = state.people.filter((p) => (cupsInRange(state.cups, sel.start, sel.end).get(p.id) || 0) > 0 || !p.archived);
     for (const p of drinkers) {
@@ -721,39 +755,47 @@ async function buildHistoryPdf(scope) {
     }
     if (!drinkers.length) pdfText(doc, "Нет участников.", 24);
   }
-  const who = scope === "one" ? nameOf(ui.personId) : scope === "each" ? "kazhdyy" : "vse";
+  const who = scope === "one" ? nameOf(whoId) : scope === "each" ? "kazhdyy" : "vse";
   await finishPdf(doc, pdfName(["kofe", who, mode, sel.start]));
 }
 function checkRows(step) {
   const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
   return step.lines.filter((l) => l.cups || l.shareKopecks || l.deposit).map((l) => ({ ...l, totalCups }));
 }
-function drawCheckPdf(doc, step) {
+function drawCheckPdf(doc, step, personId) {
   const r = step.restock;
-  const rows = checkRows(step);
-  const totalCups = rows.reduce((s, l) => s + l.cups, 0) || step.lines.reduce((s, l) => s + l.cups, 0);
-  pdfText(doc, "Чек закупки", 40, "#4a2a18", true);
+  const all = checkRows(step);
+  const rows = personId ? all.filter((l) => l.personId === personId) : all;
+  const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
+  pdfText(doc, personId ? "Чек: " + nameOf(personId) : "Чек закупки", 40, "#4a2a18", true);
   pdfText(doc, formatDay(r.date) + " · купил " + nameOf(r.buyerId), 26);
   pdfText(doc, r.packs.map((p) => p.name + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("; ") || "Пачка", 24);
   pdfText(doc, "Период: " + formatDayShort(step.coverage.start) + " — " + formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end), 24, "#7a5640");
   pdfText(doc, "Сумма закупки: " + money(step.total), 28, "#2a1810", true);
   pdfText(doc, "Всего чашек за период: " + cupsWord(totalCups), 26, "#2a1810", true);
   pdfGap(doc, 8);
-  if (!rows.length) pdfText(doc, "Чашек нет — сумма делится поровну между участниками.", 24, "#7a5640");
-  for (const l of rows) {
-    pdfText(doc, nameOf(l.personId) + ": " + formatCups(l.cups) + " из " + formatCups(totalCups) + " чашек · " + money(l.shareKopecks), 26, "#2a1810", true);
-    if (totalCups) pdfText(doc, "Откуда сумма: " + formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) + " = " + money(l.shareKopecks), 22, "#7a5640");
+  if (!rows.length) pdfText(doc, "По этому человеку в чеке нет строк.", 24, "#7a5640");
+  rows.forEach((l, i) => {
+    if (!personId && i) pdfRule(doc);
+    const bank = l.carriedIn || 0;
+    pdfText(doc, nameOf(l.personId) + ": " + formatCups(l.cups) + " из " + formatCups(totalCups) + " чашек", 26, "#2a1810", true);
+    if (totalCups) pdfText(doc, "Доля: " + formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) + " = " + money(l.shareKopecks), 22, "#7a5640");
     else pdfText(doc, "Чашек не было, доля поровну: " + money(l.shareKopecks), 22, "#7a5640");
-    if (l.deposit) pdfText(doc, "Внёс: " + money(l.deposit) + (l.left ? " · перенос " + money(l.left) : ""), 22, "#3f5c3a");
-  }
+    pdfText(doc, "Остаток в банке: " + money(bank), 22, bank ? "#3f5c3a" : "#7a5640");
+    if (l.deposit) pdfText(doc, "Внёс сейчас: " + money(l.deposit), 22, "#3f5c3a");
+    pdfText(doc, "К оплате: " + money(l.unpaid || 0), 26, "#2a1810", true);
+    if (l.left) pdfText(doc, "Перенос на следующую закупку: " + money(l.left), 22, "#3f5c3a");
+    if (!personId) pdfGap(doc, 12);
+  });
   pdfGap(doc, 28);
 }
-async function buildCheckPdf(id) {
+async function buildCheckPdf(id, personId) {
   const steps = id ? bankRun(state.restocks).steps.filter((s) => s.restock.id === id) : bankRun(state.restocks).steps;
   if (!steps.length) { toast("Нет закупок"); return; }
   const doc = pdfDoc();
-  steps.forEach((s) => drawCheckPdf(doc, s));
-  await finishPdf(doc, pdfName(["kofe-chek", id || "vse", steps[0].restock.date]));
+  steps.forEach((s) => drawCheckPdf(doc, s, personId || ""));
+  const who = personId ? nameOf(personId) : "vse";
+  await finishPdf(doc, pdfName(["kofe-chek", who, steps[0].restock.date]));
 }
 function viewHistory() {
   const sel = historySelection();
@@ -837,14 +879,17 @@ function viewBank() {
     const r = step.restock;
     const lines = checkRows(step);
     const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
-    const body = lines.map((l) => `<div class="card" style="margin-bottom:6px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.shareKopecks)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div><div class="muted">${totalCups ? formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) : "Чашек нет, доля поровну"}</div>${l.deposit ? `<div class="muted">Внёс ${money(l.deposit)}${l.left ? " · перенос " + money(l.left) : ""}</div>` : ""}</div>`).join("");
-    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек PDF</button></div>`;
+    const body = lines.map((l) => {
+      const bank = l.carriedIn || 0;
+      return `<div class="card" style="margin-bottom:8px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.unpaid || 0)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div><div class="muted">${totalCups ? formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) + " = " + money(l.shareKopecks) : "Чашек нет, доля поровну " + money(l.shareKopecks)}</div><div class="muted">Остаток в банке ${money(bank)}</div>${l.deposit ? `<div class="muted">Внёс сейчас ${money(l.deposit)}</div>` : ""}<div>К оплате <b>${money(l.unpaid || 0)}</b></div>${l.left ? `<div class="money-pos">Перенос ${money(l.left)}</div>` : ""}</div>`;
+    }).join("");
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек всем</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}">Чек человеку</button></div></div>`;
   }).join("");
   return `<h2>Банк</h2><p class="sub">Остаток каждого. Если человек внёс больше своей доли, лишнее ждёт следующую закупку.</p>
     <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
     ${rows.length ? rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("") : `<div class="card muted">Добавьте участников в настройках.</div>`}
     <h3>Чеки закупок</h3>
-    <p class="help">Сумма человека = его чашки / все чашки периода × цена закупки.</p>
+    <p class="help">К оплате = доля по чашкам минус остаток в банке и то, что человек внёс сейчас.</p>
     ${steps.length ? `<button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button>` + checks : `<div class="card muted">Чек появится после закупки.</div>`}`;
 }
 function viewSettings() {
@@ -929,7 +974,15 @@ function saveAppFile() {
 app.addEventListener("click", (e) => {
   capture();
   const tabBtn = e.target.closest("[data-tab]");
-  if (tabBtn) { ui.tab = tabBtn.dataset.tab; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(true); return; }
+  if (tabBtn) { ui.tab = tabBtn.dataset.tab; ui.pdfMenu = false; ui.checkMenu = ""; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(true); return; }
+  if (ui.pdfMenu && !e.target.closest("#pdf-menu") && !e.target.closest("[data-scope='one']")) {
+    ui.pdfMenu = false;
+    if (!e.target.closest("[data-act]")) { render(); return; }
+  }
+  if (ui.checkMenu && !e.target.closest("#check-menu") && !e.target.closest("[data-act='check-menu']")) {
+    ui.checkMenu = "";
+    if (!e.target.closest("[data-act]")) { render(); return; }
+  }
   const el = e.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act;
   if (act === "cup") {
@@ -980,8 +1033,19 @@ app.addEventListener("click", (e) => {
   if (act === "wipe") { if (!confirm("Очистить данные на этом устройстве? JSONBin не удалится.")) return; state = emptyState(); state.updatedAt = new Date().toISOString(); saveLocal(); render(); return; }
   if (act === "hist-apply") render();
   if (act === "hist-mode") { ui.histMode = el.dataset.mode === "full" ? "full" : "short"; render(); return; }
-  if (act === "pdf-hist") { buildHistoryPdf(el.dataset.scope).catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
-  if (act === "pdf-check") { buildCheckPdf(el.dataset.id || "").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "pdf-hist" && el.dataset.scope === "one") { ui.pdfMenu = !ui.pdfMenu; render(); return; }
+  if (act === "pdf-hist") { ui.pdfMenu = false; buildHistoryPdf(el.dataset.scope).catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "pdf-person") { ui.pdfMenu = false; buildHistoryPdf("one", el.dataset.id).catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "pdf-close") { ui.pdfPreview = false; pdfDraft = null; render(); return; }
+  if (act === "pdf-save") {
+    const draft = pdfDraft;
+    if (!draft) return;
+    savePdf(draft.blob, draft.filename).then(() => { ui.pdfPreview = false; pdfDraft = null; render(); }).catch((err) => toast(err.message || "Не удалось сохранить"));
+    return;
+  }
+  if (act === "pdf-check") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "check-menu") { ui.pdfMenu = false; ui.checkMenu = ui.checkMenu === el.dataset.id ? "" : el.dataset.id; render(); return; }
+  if (act === "pdf-check-person") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "", el.dataset.person).catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
 });
 app.addEventListener("submit", (e) => {
   capture();
