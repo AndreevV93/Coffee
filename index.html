@@ -58,6 +58,9 @@
   .day.off { opacity: 0.35; }
   .day.on { background: var(--primary); color: var(--cream); }
   .day .n { font-size: 10px; }
+  .day.pict { min-height: 54px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; }
+  .cupstack { position: relative; display: block; margin: 0 auto; }
+  .mini-cup { position: absolute; top: 0; width: 16px; height: 16px; overflow: visible; }
   .money-pos { color: var(--credit); }
   .money-neg { color: var(--owed); }
   .sheet { position: fixed; inset: 0; background: rgba(28, 18, 12, 0.45); display: flex; justify-content: center; align-items: flex-end; z-index: 20; }
@@ -87,7 +90,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.23";
+const APP_VERSION = "2026.10.24";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -482,6 +485,58 @@ function previewCarry(draft) {
   return applyBank(settlement.shares, carried, depositMap({ deposits: draft.deposits || [] }));
 }
 function ico(paths) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`; }
+function miniCups(count, color) {
+  const n = Math.max(0, Math.round(Number(count) || 0));
+  if (!n) return "";
+  const size = 16;
+  const maxW = 42;
+  const step = n === 1 ? 0 : Math.max(2.4, Math.min(6.5, (maxW - size) / (n - 1)));
+  const width = size + step * (n - 1);
+  let html = "";
+  for (let i = 0; i < n; i++) {
+    html += `<svg class="mini-cup" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z" fill="currentColor" opacity=".5"/><path d="M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  }
+  return `<span class="cupstack" style="width:${width.toFixed(1)}px;height:${size}px;color:${color}" title="${n}">${html}</span>`;
+}
+function drawMiniCups(g, x, y, count, color, boxW, boxH) {
+  const n = Math.max(0, Math.round(Number(count) || 0));
+  if (!n) return;
+  let size = Math.min(boxH, 48);
+  let step = n === 1 ? 0 : Math.min(size * 0.46, 22);
+  if (n > 1 && size + step * (n - 1) > boxW) {
+    step = Math.max(4, (boxW - size) / (n - 1));
+    if (size + step * (n - 1) > boxW) {
+      size = Math.max(18, boxW * 0.34);
+      step = Math.max(3, (boxW - size) / (n - 1));
+    }
+  }
+  const total = size + step * Math.max(0, n - 1);
+  const start = x + Math.max(0, (boxW - total) / 2);
+  const body = new Path2D("M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z");
+  const coffee = new Path2D("M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z");
+  const handle = new Path2D("M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1");
+  const steam = new Path2D("M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2");
+  for (let i = 0; i < n; i++) {
+    g.save();
+    g.translate(start + i * step, y + Math.max(0, (boxH - size) / 2));
+    g.scale(size / 24, size / 24);
+    g.lineJoin = "round";
+    g.lineCap = "round";
+    g.lineWidth = 1.7;
+    g.fillStyle = "#fff6e8";
+    g.strokeStyle = color || "#4a2a18";
+    g.fill(body);
+    g.stroke(body);
+    g.fillStyle = color || "#4a2a18";
+    g.globalAlpha = 0.5;
+    g.fill(coffee);
+    g.globalAlpha = 1;
+    g.fill(handle);
+    g.stroke(handle);
+    g.stroke(steam);
+    g.restore();
+  }
+}
 function render(resetScroll) {
   const prev = app.querySelector("main");
   const top = !resetScroll && prev ? prev.scrollTop : 0;
@@ -643,7 +698,7 @@ function drawCalPdf(doc, sel, personId) {
   if (!sel.start || !sel.end) return;
   const days = cupsByDay(sel.start, sel.end);
   const endIncl = addDays(sel.end, -1);
-  pdfText(doc, personId ? nameOf(personId) + " — свои чашки / все чашки за день" : "Календарь: сколько чашек выпили все", 28, "#4a2a18", true);
+  pdfText(doc, personId ? nameOf(personId) + " — чашки по дням" : "Календарь: сколько чашек выпили все", 28, "#4a2a18", true);
   let y = Number(sel.start.slice(0, 4)), m = Number(sel.start.slice(5, 7));
   const lastKey = endIncl.slice(0, 7);
   let guard = 0;
@@ -670,14 +725,18 @@ function drawCalPdf(doc, sel, personId) {
       const iso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const inRange = iso >= sel.start && iso < sel.end;
       g.fillStyle = inRange ? "#2a1810" : "#c4ad96";
-      pdfFont(g, 22, true); g.fillText(String(day), x + 14, yy + 30);
+      pdfFont(g, 22, true); g.fillText(String(day), x + 14, yy + 28);
       if (!inRange) continue;
       const bag = days.get(iso);
       const total = daySum(bag);
       const mine = personId ? (bag?.get(personId) || 0) : total;
-      pdfFont(g, personId ? 28 : 32, true);
-      g.fillStyle = mine ? "#4a2a18" : "#c4ad96";
-      g.fillText(personId ? formatCups(mine) + "/" + formatCups(total) : (total ? formatCups(total) : "·"), x + 14, yy + 78);
+      if (personId) {
+        if (mine) drawMiniCups(g, x + 8, yy + 34, mine, colorOf(personById(personId)?.color), cw - 20, 66);
+      } else if (total) {
+        pdfFont(g, 32, true);
+        g.fillStyle = "#4a2a18";
+        g.fillText(formatCups(total), x + 14, yy + 78);
+      }
     }
     doc.page.y = top + 24 + rows * 118;
     m += 1; if (m === 13) { m = 1; y += 1; }
@@ -837,13 +896,18 @@ function viewHistory() {
         const bag = dayMap.get(iso);
         const total = daySum(bag);
         const mine = ui.personId === "all" ? total : (bag?.get(ui.personId) || 0);
-        const mark = !inRange ? "" : ui.personId === "all" ? (total ? formatCups(total) : "") : (total || mine ? formatCups(mine) + "/" + formatCups(total) : "");
-        cells.push(`<div class="day ${inRange ? "" : "off"}">${day}<div class="n">${mark || "&nbsp;"}</div></div>`);
+        if (ui.personId !== "all") {
+          const color = colorOf(personById(ui.personId)?.color);
+          cells.push(`<div class="day pict ${inRange ? "" : "off"}">${day}${inRange && mine ? miniCups(mine, color) : ""}</div>`);
+        } else {
+          const mark = inRange && total ? formatCups(total) : "";
+          cells.push(`<div class="day ${inRange ? "" : "off"}">${day}<div class="n">${mark || "&nbsp;"}</div></div>`);
+        }
       }
       blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
       m += 1; if (m === 13) { m = 1; y += 1; }
     }
-    calendar = `<p class="muted">${ui.personId === "all" ? "На дне — сколько чашек выпили все." : "На дне — чашки человека / все чашки за этот день."}</p>` + blocks.join("");
+    calendar = `<p class="muted">${ui.personId === "all" ? "На дне — сколько чашек выпили все." : "На дне — чашки этого человека. Несколько чашек лежат стопкой."}</p>` + blocks.join("");
   }
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
     <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
