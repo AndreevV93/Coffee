@@ -58,13 +58,13 @@
   .day.off { opacity: 0.35; }
   .day.on { background: var(--primary); color: var(--cream); }
   .day .n { font-size: 10px; }
-  .day.pict { min-height: 54px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; }
-  .cupstack, .cupgrid { display: grid; gap: 1px; justify-content: center; justify-items: center; margin: 0 auto; }
-  .mini-wrap { position: static; display: block; }
+  .day.pict { min-height: 62px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; }
+  .cuppile { position: relative; display: block; margin: 0 auto; }
+  .cuppile .mini-wrap { position: absolute; top: 0; display: block; }
   .mini-cup { width: 100%; height: 100%; display: block; overflow: visible; }
   .bigcup { position: relative; display: block; margin: 1px auto 0; }
-  .bigcup b { position: absolute; left: 0; right: 5px; top: 58%; transform: translateY(-50%); text-align: center; font-size: 11px; line-height: 1; font-weight: 750; color: #2a1810; pointer-events: none; }
-  .day.on .bigcup b { color: var(--cream); }
+  .bigcup b { position: absolute; left: 46%; top: 57%; transform: translate(-50%, -50%); min-width: 1.15em; padding: 1px 4px; border-radius: 99px; background: #fffaf3; color: #2a1810; font-size: 13px; font-weight: 800; line-height: 1.15; text-align: center; letter-spacing: -0.03em; pointer-events: none; }
+  .day.on .bigcup b { background: #fffaf3; color: #2a1810; }
   .packdot { display: block; width: 4px; height: 4px; border-radius: 99px; background: var(--primary); margin: 1px auto 0; }
   .day.on .packdot { background: var(--cream); }
   .money-pos { color: var(--credit); }
@@ -96,7 +96,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.26";
+const APP_VERSION = "2026.10.27";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -491,8 +491,9 @@ function previewCarry(draft) {
   return applyBank(settlement.shares, carried, depositMap({ deposits: draft.deposits || [] }));
 }
 function ico(paths) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`; }
-function cupSvg() {
-  return `<svg class="mini-cup" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z" fill="currentColor" opacity=".5"/><path d="M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+function cupSvg(plain) {
+  const coffee = plain ? "" : `<path d="M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z" fill="currentColor" opacity=".5"/>`;
+  return `<svg class="mini-cup" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>${coffee}<path d="M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 }
 function cupParts(bag, onlyId) {
   const parts = [];
@@ -508,16 +509,17 @@ function cupParts(bag, onlyId) {
 function cupsGlyph(parts) {
   const n = parts.length;
   if (!n) return "";
-  if (n > 5) {
+  if (n >= 5) {
     const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
-    return `<span class="bigcup" style="width:28px;height:28px;color:${color}" title="${n}">${cupSvg()}<b>${n}</b></span>`;
+    return `<span class="bigcup" style="width:36px;height:36px;color:${color}" title="${n}">${cupSvg(true)}<b>${n}</b></span>`;
   }
-  const cols = n <= 3 ? n : n === 4 ? 2 : 3;
-  const size = n === 1 ? 16 : n === 2 ? 14 : 12;
-  const html = parts.map((color) => `<span class="mini-wrap" style="color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
-  return `<span class="cupgrid" style="grid-template-columns:repeat(${cols}, ${size}px)" title="${n}">${html}</span>`;
+  const size = 20;
+  const step = size * 0.5;
+  const width = size + step * (n - 1);
+  const html = parts.map((color, i) => `<span class="mini-wrap" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1};color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
+  return `<span class="cuppile" style="width:${width.toFixed(1)}px;height:${size}px" title="${n}">${html}</span>`;
 }
-function strokeCup(g, color) {
+function strokeCup(g, color, plain) {
   const body = new Path2D("M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z");
   const coffee = new Path2D("M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z");
   const handle = new Path2D("M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1");
@@ -529,10 +531,12 @@ function strokeCup(g, color) {
   g.strokeStyle = color || "#4a2a18";
   g.fill(body);
   g.stroke(body);
-  g.fillStyle = color || "#4a2a18";
-  g.globalAlpha = 0.5;
-  g.fill(coffee);
-  g.globalAlpha = 1;
+  if (!plain) {
+    g.fillStyle = color || "#4a2a18";
+    g.globalAlpha = 0.5;
+    g.fill(coffee);
+    g.globalAlpha = 1;
+  }
   g.fill(handle);
   g.stroke(handle);
   g.stroke(steam);
@@ -541,36 +545,38 @@ function drawDayMarks(g, x, y, parts, boxW, boxH) {
   const n = parts.length;
   if (!n) return;
   const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
-  if (n > 5) {
-    const size = Math.min(boxW, boxH, 72);
+  if (n >= 5) {
+    const size = Math.min(boxW, boxH, 78);
     const ox = x + (boxW - size) / 2;
     const oy = y + (boxH - size) / 2;
     g.save();
     g.translate(ox, oy);
     g.scale(size / 24, size / 24);
-    strokeCup(g, color);
+    strokeCup(g, color, true);
     g.restore();
+    const cx = ox + size * (11 / 24);
+    const cy = oy + size * (13.5 / 24);
+    g.fillStyle = "#fffaf3";
+    g.beginPath();
+    g.arc(cx, cy, size * 0.2, 0, Math.PI * 2);
+    g.fill();
     g.fillStyle = "#2a1810";
     g.textAlign = "center";
-    pdfFont(g, Math.max(16, size * 0.36), true);
-    g.fillText(String(n), ox + size * 0.40, oy + size * 0.66);
+    g.textBaseline = "middle";
+    pdfFont(g, Math.max(22, size * 0.38), true);
+    g.fillText(String(n), cx, cy + 1);
     g.textAlign = "left";
+    g.textBaseline = "alphabetic";
     return;
   }
-  const cols = n <= 3 ? n : n === 4 ? 2 : 3;
-  const rowsN = Math.ceil(n / cols);
-  const gap = 6;
-  let size = Math.min((boxH - gap * (rowsN - 1)) / rowsN, (boxW - gap * (cols - 1)) / cols, 44);
-  size = Math.max(18, size);
-  const totalW = cols * size + (cols - 1) * gap;
-  const totalH = rowsN * size + (rowsN - 1) * gap;
-  const ox = x + (boxW - totalW) / 2;
-  const oy = y + Math.max(0, (boxH - totalH) / 2);
+  const size = Math.min(boxH * 0.72, 56);
+  const step = size * 0.5;
+  const total = size + step * (n - 1);
+  const start = x + Math.max(0, (boxW - total) / 2);
+  const top = y + Math.max(0, (boxH - size) / 2);
   parts.forEach((c, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
     g.save();
-    g.translate(ox + col * (size + gap), oy + row * (size + gap));
+    g.translate(start + i * step, top);
     g.scale(size / 24, size / 24);
     strokeCup(g, c);
     g.restore();
@@ -963,7 +969,7 @@ function viewHistory() {
       blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
       m += 1; if (m === 13) { m = 1; y += 1; }
     }
-    calendar = `<p class="muted">Меньше 5 чашек — отдельная чашка цветом того, кто пил. Больше 5 — одна большая чашка с цифрой.</p>` + blocks.join("");
+    calendar = `<p class="muted">До 4 чашек — отдельная чашка цветом того, кто пил, следующая закрывает предыдущую наполовину. С 5 — одна большая чашка с цифрой.</p>` + blocks.join("");
   }
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
     <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
