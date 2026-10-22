@@ -59,8 +59,14 @@
   .day.on { background: var(--primary); color: var(--cream); }
   .day .n { font-size: 10px; }
   .day.pict { min-height: 54px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; }
-  .cupstack { position: relative; display: block; margin: 0 auto; }
-  .mini-cup { position: absolute; top: 0; width: 16px; height: 16px; overflow: visible; }
+  .cupstack, .cupgrid { display: grid; gap: 1px; justify-content: center; justify-items: center; margin: 0 auto; }
+  .mini-wrap { position: static; display: block; }
+  .mini-cup { width: 100%; height: 100%; display: block; overflow: visible; }
+  .bigcup { position: relative; display: block; margin: 1px auto 0; }
+  .bigcup b { position: absolute; left: 0; right: 5px; top: 58%; transform: translateY(-50%); text-align: center; font-size: 11px; line-height: 1; font-weight: 750; color: #2a1810; pointer-events: none; }
+  .day.on .bigcup b { color: var(--cream); }
+  .packdot { display: block; width: 4px; height: 4px; border-radius: 99px; background: var(--primary); margin: 1px auto 0; }
+  .day.on .packdot { background: var(--cream); }
   .money-pos { color: var(--credit); }
   .money-neg { color: var(--owed); }
   .sheet { position: fixed; inset: 0; background: rgba(28, 18, 12, 0.45); display: flex; justify-content: center; align-items: flex-end; z-index: 20; }
@@ -90,7 +96,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.24";
+const APP_VERSION = "2026.10.26";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -485,57 +491,90 @@ function previewCarry(draft) {
   return applyBank(settlement.shares, carried, depositMap({ deposits: draft.deposits || [] }));
 }
 function ico(paths) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`; }
-function miniCups(count, color) {
-  const n = Math.max(0, Math.round(Number(count) || 0));
-  if (!n) return "";
-  const size = 16;
-  const maxW = 42;
-  const step = n === 1 ? 0 : Math.max(2.4, Math.min(6.5, (maxW - size) / (n - 1)));
-  const width = size + step * (n - 1);
-  let html = "";
-  for (let i = 0; i < n; i++) {
-    html += `<svg class="mini-cup" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z" fill="currentColor" opacity=".5"/><path d="M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-  }
-  return `<span class="cupstack" style="width:${width.toFixed(1)}px;height:${size}px;color:${color}" title="${n}">${html}</span>`;
+function cupSvg() {
+  return `<svg class="mini-cup" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z" fill="currentColor" opacity=".5"/><path d="M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1" fill="#fff6e8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 }
-function drawMiniCups(g, x, y, count, color, boxW, boxH) {
-  const n = Math.max(0, Math.round(Number(count) || 0));
-  if (!n) return;
-  let size = Math.min(boxH, 48);
-  let step = n === 1 ? 0 : Math.min(size * 0.46, 22);
-  if (n > 1 && size + step * (n - 1) > boxW) {
-    step = Math.max(4, (boxW - size) / (n - 1));
-    if (size + step * (n - 1) > boxW) {
-      size = Math.max(18, boxW * 0.34);
-      step = Math.max(3, (boxW - size) / (n - 1));
-    }
+function cupParts(bag, onlyId) {
+  const parts = [];
+  if (!bag) return parts;
+  const ids = [...bag.keys()].filter((id) => !onlyId || id === onlyId).sort((a, b) => nameOf(a).localeCompare(nameOf(b), "ru"));
+  for (const id of ids) {
+    const n = Math.max(0, Math.round(bag.get(id) || 0));
+    const color = colorOf((personById(id) || {}).color);
+    for (let i = 0; i < n; i++) parts.push(color);
   }
-  const total = size + step * Math.max(0, n - 1);
-  const start = x + Math.max(0, (boxW - total) / 2);
+  return parts;
+}
+function cupsGlyph(parts) {
+  const n = parts.length;
+  if (!n) return "";
+  if (n > 5) {
+    const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
+    return `<span class="bigcup" style="width:28px;height:28px;color:${color}" title="${n}">${cupSvg()}<b>${n}</b></span>`;
+  }
+  const cols = n <= 3 ? n : n === 4 ? 2 : 3;
+  const size = n === 1 ? 16 : n === 2 ? 14 : 12;
+  const html = parts.map((color) => `<span class="mini-wrap" style="color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
+  return `<span class="cupgrid" style="grid-template-columns:repeat(${cols}, ${size}px)" title="${n}">${html}</span>`;
+}
+function strokeCup(g, color) {
   const body = new Path2D("M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z");
   const coffee = new Path2D("M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z");
   const handle = new Path2D("M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1");
   const steam = new Path2D("M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2");
-  for (let i = 0; i < n; i++) {
+  g.lineJoin = "round";
+  g.lineCap = "round";
+  g.lineWidth = 1.7;
+  g.fillStyle = "#fff6e8";
+  g.strokeStyle = color || "#4a2a18";
+  g.fill(body);
+  g.stroke(body);
+  g.fillStyle = color || "#4a2a18";
+  g.globalAlpha = 0.5;
+  g.fill(coffee);
+  g.globalAlpha = 1;
+  g.fill(handle);
+  g.stroke(handle);
+  g.stroke(steam);
+}
+function drawDayMarks(g, x, y, parts, boxW, boxH) {
+  const n = parts.length;
+  if (!n) return;
+  const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
+  if (n > 5) {
+    const size = Math.min(boxW, boxH, 72);
+    const ox = x + (boxW - size) / 2;
+    const oy = y + (boxH - size) / 2;
     g.save();
-    g.translate(start + i * step, y + Math.max(0, (boxH - size) / 2));
+    g.translate(ox, oy);
     g.scale(size / 24, size / 24);
-    g.lineJoin = "round";
-    g.lineCap = "round";
-    g.lineWidth = 1.7;
-    g.fillStyle = "#fff6e8";
-    g.strokeStyle = color || "#4a2a18";
-    g.fill(body);
-    g.stroke(body);
-    g.fillStyle = color || "#4a2a18";
-    g.globalAlpha = 0.5;
-    g.fill(coffee);
-    g.globalAlpha = 1;
-    g.fill(handle);
-    g.stroke(handle);
-    g.stroke(steam);
+    strokeCup(g, color);
     g.restore();
+    g.fillStyle = "#2a1810";
+    g.textAlign = "center";
+    pdfFont(g, Math.max(16, size * 0.36), true);
+    g.fillText(String(n), ox + size * 0.40, oy + size * 0.66);
+    g.textAlign = "left";
+    return;
   }
+  const cols = n <= 3 ? n : n === 4 ? 2 : 3;
+  const rowsN = Math.ceil(n / cols);
+  const gap = 6;
+  let size = Math.min((boxH - gap * (rowsN - 1)) / rowsN, (boxW - gap * (cols - 1)) / cols, 44);
+  size = Math.max(18, size);
+  const totalW = cols * size + (cols - 1) * gap;
+  const totalH = rowsN * size + (rowsN - 1) * gap;
+  const ox = x + (boxW - totalW) / 2;
+  const oy = y + Math.max(0, (boxH - totalH) / 2);
+  parts.forEach((c, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    g.save();
+    g.translate(ox + col * (size + gap), oy + row * (size + gap));
+    g.scale(size / 24, size / 24);
+    strokeCup(g, c);
+    g.restore();
+  });
 }
 function render(resetScroll) {
   const prev = app.querySelector("main");
@@ -579,7 +618,7 @@ function viewCups() {
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); cells.push(d); }
   const today = todayISO(); const active = state.people.filter((p) => !p.archived); const dayOpen = state.openings.filter((o) => o.date === ui.selected);
   return `<h2>Чашки</h2><p class="sub">Месяц и открытия пачек</p><div class="row" style="margin-bottom:10px"><button class="btn-ghost sm" type="button" data-act="month" data-d="-1">←</button><button class="btn-ghost grow" type="button" data-act="today">${MONTHS[m-1]} ${y}</button><button class="btn-ghost sm" type="button" data-act="month" data-d="1">→</button></div>
-    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const cups = state.cups.filter((c) => c.date === iso).reduce((s, c) => s + c.cups, 0); const opens = state.openings.some((o) => o.date === iso); return `<button type="button" class="day ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}">${d.getDate()}<div class="n">${cups ? cups : opens ? "пач" : "&nbsp;"}</div></button>`; }).join("")}</div></div>
+    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const bag = new Map(); for (const c of state.cups) if (c.date === iso && c.cups > 0) bag.set(c.personId, (bag.get(c.personId) || 0) + c.cups); const glyph = cupsGlyph(cupParts(bag)); const opens = state.openings.some((o) => o.date === iso); const pack = opens ? (glyph ? `<i class="packdot"></i>` : `<div class="n">пач</div>`) : ""; return `<button type="button" class="day ${glyph ? "pict" : ""} ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}">${d.getDate()}${glyph}${pack}</button>`; }).join("")}</div></div>
     <h3>${formatDay(ui.selected)}${ui.selected === today ? " · сегодня" : ""}</h3>
     ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}</div>`).join("")}
     <h3>Открытые пачки в этот день</h3>
@@ -728,15 +767,7 @@ function drawCalPdf(doc, sel, personId) {
       pdfFont(g, 22, true); g.fillText(String(day), x + 14, yy + 28);
       if (!inRange) continue;
       const bag = days.get(iso);
-      const total = daySum(bag);
-      const mine = personId ? (bag?.get(personId) || 0) : total;
-      if (personId) {
-        if (mine) drawMiniCups(g, x + 8, yy + 34, mine, colorOf(personById(personId)?.color), cw - 20, 66);
-      } else if (total) {
-        pdfFont(g, 32, true);
-        g.fillStyle = "#4a2a18";
-        g.fillText(formatCups(total), x + 14, yy + 78);
-      }
+      if (inRange) drawDayMarks(g, x + 6, yy + 32, cupParts(bag, personId || ""), cw - 16, 68);
     }
     doc.page.y = top + 24 + rows * 118;
     m += 1; if (m === 13) { m = 1; y += 1; }
@@ -819,7 +850,41 @@ async function buildHistoryPdf(scope, personId) {
 }
 function checkRows(step) {
   const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
-  return step.lines.filter((l) => l.cups || l.shareKopecks || l.deposit).map((l) => ({ ...l, totalCups }));
+  return step.lines.filter((l) => l.cups || l.shareKopecks || l.deposit || l.carriedIn).map((l) => ({ ...l, totalCups }));
+}
+function checkExplain(l, totalCups, totalMoney) {
+  const bank = l.carriedIn || 0;
+  const deposit = l.deposit || 0;
+  const share = l.shareKopecks || 0;
+  const due = l.unpaid || 0;
+  const left = l.left || 0;
+  const shareHow = totalCups
+    ? formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(totalMoney)
+    : "чашек нет, доля поровну";
+  const rows = [{ text: "Доля по чашкам: " + shareHow + " = " + money(share) }];
+  if (bank) {
+    const fromBank = Math.min(bank, share);
+    const afterBank = share - fromBank;
+    rows.push({ text: "Банк до чека: " + money(bank), kind: "bank" });
+    if (fromBank) {
+      rows.push({ text: "Списано с банка: " + money(fromBank), kind: "bank" });
+      rows.push({ text: "После банка: " + money(share) + " − " + money(fromBank) + " = " + money(afterBank), kind: "calc" });
+    }
+    if (deposit) {
+      rows.push({ text: "Внёс сейчас: " + money(deposit), kind: "bank" });
+      const rest = afterBank - deposit;
+      rows.push({ text: money(afterBank) + " − " + money(deposit) + " = " + (rest > 0 ? money(rest) : "0, переплата " + money(-rest)), kind: "calc" });
+    } else if (bank > share) {
+      rows.push({ text: "В банке остаётся: " + money(bank - share), kind: "bank" });
+    }
+  } else if (deposit) {
+    rows.push({ text: "Внёс сейчас: " + money(deposit), kind: "bank" });
+    const rest = share - deposit;
+    rows.push({ text: money(share) + " − " + money(deposit) + " = " + (rest > 0 ? money(rest) : "0, переплата " + money(-rest)), kind: "calc" });
+  }
+  rows.push({ text: "К оплате: " + money(due), kind: "due" });
+  if (left && !(bank > share && !deposit)) rows.push({ text: "Банк после чека: " + money(left), kind: "bank" });
+  return rows;
 }
 function drawCheckPdf(doc, step, personId) {
   const r = step.restock;
@@ -836,14 +901,11 @@ function drawCheckPdf(doc, step, personId) {
   if (!rows.length) pdfText(doc, "По этому человеку в чеке нет строк.", 24, "#7a5640");
   rows.forEach((l, i) => {
     if (!personId && i) pdfRule(doc);
-    const bank = l.carriedIn || 0;
     pdfText(doc, nameOf(l.personId) + ": " + formatCups(l.cups) + " из " + formatCups(totalCups) + " чашек", 26, "#2a1810", true);
-    if (totalCups) pdfText(doc, "Доля: " + formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) + " = " + money(l.shareKopecks), 22, "#7a5640");
-    else pdfText(doc, "Чашек не было, доля поровну: " + money(l.shareKopecks), 22, "#7a5640");
-    pdfText(doc, "Остаток в банке: " + money(bank), 22, bank ? "#3f5c3a" : "#7a5640");
-    if (l.deposit) pdfText(doc, "Внёс сейчас: " + money(l.deposit), 22, "#3f5c3a");
-    pdfText(doc, "К оплате: " + money(l.unpaid || 0), 26, "#2a1810", true);
-    if (l.left) pdfText(doc, "Перенос на следующую закупку: " + money(l.left), 22, "#3f5c3a");
+    for (const row of checkExplain(l, totalCups, step.total)) {
+      const color = row.kind === "bank" ? "#3f5c3a" : row.kind === "due" ? "#2a1810" : "#7a5640";
+      pdfText(doc, row.text, row.kind === "due" ? 26 : 22, color, row.kind === "due");
+    }
     if (!personId) pdfGap(doc, 12);
   });
   pdfGap(doc, 28);
@@ -893,21 +955,15 @@ function viewHistory() {
       for (let day = 1; day <= count; day++) {
         const iso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         const inRange = iso >= start && iso < end;
-        const bag = dayMap.get(iso);
-        const total = daySum(bag);
-        const mine = ui.personId === "all" ? total : (bag?.get(ui.personId) || 0);
-        if (ui.personId !== "all") {
-          const color = colorOf(personById(ui.personId)?.color);
-          cells.push(`<div class="day pict ${inRange ? "" : "off"}">${day}${inRange && mine ? miniCups(mine, color) : ""}</div>`);
-        } else {
-          const mark = inRange && total ? formatCups(total) : "";
-          cells.push(`<div class="day ${inRange ? "" : "off"}">${day}<div class="n">${mark || "&nbsp;"}</div></div>`);
-        }
+        const bag = inRange ? dayMap.get(iso) : null;
+        const only = ui.personId === "all" ? "" : ui.personId;
+        const glyph = cupsGlyph(cupParts(bag, only));
+        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}">${day}${glyph}</div>`);
       }
       blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
       m += 1; if (m === 13) { m = 1; y += 1; }
     }
-    calendar = `<p class="muted">${ui.personId === "all" ? "На дне — сколько чашек выпили все." : "На дне — чашки этого человека. Несколько чашек лежат стопкой."}</p>` + blocks.join("");
+    calendar = `<p class="muted">Меньше 5 чашек — отдельная чашка цветом того, кто пил. Больше 5 — одна большая чашка с цифрой.</p>` + blocks.join("");
   }
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
     <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
@@ -930,9 +986,7 @@ function viewRestocks() {
   if (!list.length) return `<h2>Закупки</h2><p class="sub">Пачки с ценой и массой</p><div class="card muted">Пока пусто.</div><button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
   return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p>` + bankRun(state.restocks).steps.slice().reverse().map((s) => {
     const r = s.restock;
-    const paid = s.lines.filter((l) => l.deposit).map((l) => esc(nameOf(l.personId)) + " внёс " + money(l.deposit)).join("<br>");
-    const carry = s.lines.filter((l) => l.left).map((l) => esc(nameOf(l.personId)) + " перенос " + money(l.left)).join("<br>");
-    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.lines.filter((x) => x.shareKopecks || x.cups).map((x) => `<div class="split"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.shareKopecks)}</span></div>`).join("")}${paid ? `<div class="muted" style="margin-top:6px">${paid}</div>` : ""}${carry ? `<div class="money-pos" style="margin-top:4px">${carry}</div>` : ""}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.lines.filter((x) => x.shareKopecks || x.cups || x.carriedIn || x.deposit).map((x) => { const cups = s.lines.reduce((n, l) => n + (l.cups || 0), 0); const extra = (x.carriedIn || x.deposit) ? checkExplain(x, cups, s.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("") : ""; return `<div class="split" style="margin-top:8px"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.unpaid || 0)}</span></div>${extra}`; }).join("")}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
   }).join("") + `<button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
 }
 function viewBank() {
@@ -944,8 +998,8 @@ function viewBank() {
     const lines = checkRows(step);
     const totalCups = step.lines.reduce((s, l) => s + (l.cups || 0), 0);
     const body = lines.map((l) => {
-      const bank = l.carriedIn || 0;
-      return `<div class="card" style="margin-bottom:8px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.unpaid || 0)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div><div class="muted">${totalCups ? formatCups(l.cups) + " / " + formatCups(totalCups) + " × " + money(step.total) + " = " + money(l.shareKopecks) : "Чашек нет, доля поровну " + money(l.shareKopecks)}</div><div class="muted">Остаток в банке ${money(bank)}</div>${l.deposit ? `<div class="muted">Внёс сейчас ${money(l.deposit)}</div>` : ""}<div>К оплате <b>${money(l.unpaid || 0)}</b></div>${l.left ? `<div class="money-pos">Перенос ${money(l.left)}</div>` : ""}</div>`;
+      const rows = checkExplain(l, totalCups, step.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("");
+      return `<div class="card" style="margin-bottom:8px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.unpaid || 0)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div>${rows}</div>`;
     }).join("");
     return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек всем</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}">Чек человеку</button></div></div>`;
   }).join("");
@@ -953,7 +1007,7 @@ function viewBank() {
     <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
     ${rows.length ? rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("") : `<div class="card muted">Добавьте участников в настройках.</div>`}
     <h3>Чеки закупок</h3>
-    <p class="help">К оплате = доля по чашкам минус остаток в банке и то, что человек внёс сейчас.</p>
+    <p class="help">К оплате = доля по чашкам минус банк до чека и то, что человек внёс сейчас. Если банк больше доли, разница остаётся на следующий раз.</p>
     ${steps.length ? `<button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button>` + checks : `<div class="card muted">Чек появится после закупки.</div>`}`;
 }
 function viewSettings() {
@@ -986,14 +1040,7 @@ function restockSheet() {
   const live = previewShares(d);
   const carry = previewCarry(d);
   const depValue = (id) => { const row = (d.deposits || []).find((x) => x.personId === id); return row && row.amountKopecks ? rub(row.amountKopecks) : ""; };
-  const lineText = (l) => {
-    const bits = [];
-    if (l.carriedIn) bits.push("прошлый остаток " + money(l.carriedIn));
-    if (l.deposit) bits.push("внёс " + money(l.deposit));
-    if (l.left) bits.push("перенос " + money(l.left));
-    else if (l.unpaid && l.personId !== d.buyerId) bits.push("должен " + money(l.unpaid));
-    return bits.join(" · ");
-  };
+  const lineText = (l) => checkExplain(l, live.shares.reduce((n, s) => n + (s.cups || 0), 0), live.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("");
   return `<div class="sheet"><div class="panel"><div class="row"><h2 class="grow">${d.id ? "Закупка" : "Новая закупка"}</h2><button class="btn-ghost sm" type="button" data-act="close">Закрыть</button></div>
     <form id="restock-form"><label class="lbl">Дата</label><input class="field" name="date" type="date" value="${esc(d.date)}" />
       <label class="lbl">Кто купил</label><select class="field" name="buyerId">${people.map((p) => `<option value="${p.id}" ${p.id === d.buyerId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
@@ -1005,7 +1052,7 @@ function restockSheet() {
       <p class="help">Сумма человека, не цена пачки. Если внёс больше своей доли, лишнее перейдёт на следующую закупку.</p>
       ${payers.map((p) => `<label class="lbl">${esc(p.name)}, ₽</label><input class="field" data-dep="${p.id}" inputmode="decimal" placeholder="0" value="${esc(depValue(p.id))}" />`).join("")}
       <label class="lbl">Заметка</label><textarea class="field" name="note">${esc(d.note || "")}</textarea>
-      <div class="card"><div class="muted">Делится ${money(live.total)} за ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${carry.lines.filter((s) => s.shareKopecks || s.cups || s.deposit || s.left).map((s) => `<div class="split"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><b>${money(s.shareKopecks)}</b></div>${lineText(s) ? `<div class="muted">${lineText(s)}</div>` : ""}`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
+      <div class="card"><div class="muted">Делится ${money(live.total)} за ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${carry.lines.filter((s) => s.shareKopecks || s.cups || s.deposit || s.carriedIn || s.left).map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><b>${money(s.unpaid || 0)}</b></div>${lineText(s)}`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
       <button class="btn" type="submit">Сохранить</button></form></div></div>`;
 }
 function openingSheet() {
