@@ -54,13 +54,15 @@
   .dot { width: 14px; height: 14px; border-radius: 99px; flex: none; }
   .grid7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
   .dow { text-align: center; font-size: 11px; color: var(--muted); text-transform: uppercase; }
-  .day { position: relative; border: 1px solid transparent; background: transparent; border-radius: 10px; min-height: 46px; padding: 4px 0; font-size: 13px; }
+  .day { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: stretch; border: 1px solid transparent; background: transparent; border-radius: 10px; min-height: 48px; padding: 2px 2px 3px; font-size: 12px; line-height: 1; }
   .day.off { opacity: 0.35; }
   .day.on { background: var(--primary); color: var(--cream); }
-  .day .n { font-size: 10px; }
-  .badges { position: absolute; top: 0; right: 0; display: flex; flex-direction: column; gap: 0; pointer-events: none; }
-  .badge { width: 18px; height: 18px; display: block; filter: drop-shadow(0 1px 0 rgba(255, 246, 232, 0.9)); }
-  .day.pict { min-height: 62px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; }
+  .dayhead { display: flex; align-items: center; justify-content: space-between; height: 14px; flex: none; width: 100%; }
+  .dnum { font-size: 12px; line-height: 1; }
+  .badges { display: flex; flex-direction: row; gap: 0; flex: none; pointer-events: none; }
+  .badge { width: 12px; height: 12px; display: block; }
+  .marks { flex: 1; min-height: 22px; width: 100%; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
+  .day.pict { min-height: 46px; }
   .cuppile { position: relative; display: block; margin: 0 auto; }
   .cuppile .mini-wrap { position: absolute; top: 0; display: block; }
   .mini-cup { width: 100%; height: 100%; display: block; overflow: visible; }
@@ -96,7 +98,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.34";
+const APP_VERSION = "2026.10.35";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -424,7 +426,8 @@ function setNote(date, text) {
     const old = el.querySelector(".badges");
     if (old) old.remove();
     const html = dayBadges(date);
-    if (html) el.insertAdjacentHTML("beforeend", html);
+    const head = el.querySelector(".dayhead");
+    if (html && head) head.insertAdjacentHTML("beforeend", html);
     el.title = dayHint(date);
   });
 }
@@ -439,6 +442,9 @@ function dayBadges(iso) {
   const note = noteOn(iso);
   if (!opens && !note) return "";
   return `<span class="badges">${opens ? packSvg() : ""}${note ? noteSvg() : ""}</span>`;
+}
+function dayInner(iso, dayNum, glyph) {
+  return `<span class="dayhead"><span class="dnum">${dayNum}</span>${iso ? dayBadges(iso) : ""}</span>${glyph ? `<span class="marks">${glyph}</span>` : ""}`;
 }
 function dayHint(iso) {
   const bits = [];
@@ -606,11 +612,11 @@ function cupParts(bag, onlyId) {
 function cupsGlyph(parts) {
   const n = parts.length;
   if (!n) return "";
-  if (n >= 5) {
+  if (n >= 4) {
     const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
-    return `<span class="bigcup" style="width:38px;height:38px;color:${color}" title="${n}">${countCupSvg()}<b style="font-size:${n >= 10 ? 11 : 14}px">${n}</b></span>`;
+    return `<span class="bigcup" style="width:30px;height:30px;color:${color}" title="${n}">${countCupSvg()}<b style="font-size:${n >= 10 ? 10 : 13}px">${n}</b></span>`;
   }
-  const size = 20;
+  const size = n === 1 ? 22 : n === 2 ? 16 : 14;
   const step = size * 0.5;
   const width = size + step * (n - 1);
   const html = parts.map((color, i) => `<span class="mini-wrap" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1};color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
@@ -652,7 +658,7 @@ function drawDayMarks(g, x, y, parts, boxW, boxH) {
   const n = parts.length;
   if (!n) return;
   const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
-  if (n >= 5) {
+  if (n >= 4) {
     const size = Math.min(boxW, boxH, 78);
     const ox = x + (boxW - size) / 2;
     const oy = y + (boxH - size) / 2;
@@ -725,8 +731,8 @@ function viewCups() {
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); cells.push(d); }
   const today = todayISO(); const active = state.people.filter((p) => !p.archived); const dayOpen = state.openings.filter((o) => o.date === ui.selected);
   return `<h2>Чашки</h2><p class="sub">Месяц и открытия пачек</p><div class="row" style="margin-bottom:10px"><button class="btn-ghost sm" type="button" data-act="month" data-d="-1">←</button><button class="btn-ghost grow" type="button" data-act="today">${MONTHS[m-1]} ${y}</button><button class="btn-ghost sm" type="button" data-act="month" data-d="1">→</button></div>
-    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const bag = new Map(); for (const c of state.cups) if (c.date === iso && c.cups > 0) bag.set(c.personId, (bag.get(c.personId) || 0) + c.cups); const glyph = cupsGlyph(cupParts(bag)); const hint = dayHint(iso); return `<button type="button" class="day ${glyph ? "pict" : ""} ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}" title="${esc(hint)}">${d.getDate()}${glyph}${dayBadges(iso)}</button>`; }).join("")}</div></div>
-    <p class="muted">Открытый мешок с искрой — в этот день открыли пачку. Листок — на дне есть заметка.</p>
+    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const bag = new Map(); for (const c of state.cups) if (c.date === iso && c.cups > 0) bag.set(c.personId, (bag.get(c.personId) || 0) + c.cups); const glyph = cupsGlyph(cupParts(bag)); const hint = dayHint(iso); return `<button type="button" class="day ${glyph ? "pict" : ""} ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}" title="${esc(hint)}">${dayInner(iso, d.getDate(), glyph)}</button>`; }).join("")}</div></div>
+    <p class="muted">До 3 чашек — отдельные значки под датой. С 4 — одна чашка с цифрой. Мешок — открыли пачку, листок — заметка.</p>
     <h3>${formatDay(ui.selected)}${ui.selected === today ? " · сегодня" : ""}</h3>
     ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}</div>`).join("")}
     <h3>Открытые пачки в этот день</h3>
@@ -933,12 +939,18 @@ function drawCalPdf(doc, sel, personId) {
       const iso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const inRange = iso >= sel.start && iso < sel.end;
       g.fillStyle = inRange ? "#2a1810" : "#c4ad96";
-      pdfFont(g, 22, true); g.fillText(String(day), x + 14, yy + 28);
+      pdfFont(g, 20, true); g.fillText(String(day), x + 12, yy + 24);
       if (!inRange) continue;
+      g.save();
+      g.beginPath();
+      g.rect(x + 4, yy, cw - 8, 108);
+      g.clip();
       const bag = days.get(iso);
-      if (inRange) drawDayMarks(g, x + 6, yy + 36, cupParts(bag, personId || ""), cw - 16, 64);
-      if (inRange && state.openings.some((o) => o.date === iso)) drawBag(g, x + cw - 28, yy + 8, 18);
-      if (inRange && noteOn(iso)) drawSlip(g, x + cw - (state.openings.some((o) => o.date === iso) ? 48 : 28), yy + 8, 18);
+      drawDayMarks(g, x + 8, yy + 30, cupParts(bag, personId || ""), cw - 20, 70);
+      let badgeX = x + cw - 24;
+      if (noteOn(iso)) { drawSlip(g, badgeX, yy + 6, 16); badgeX -= 16; }
+      if (state.openings.some((o) => o.date === iso)) drawBag(g, badgeX, yy + 6, 16);
+      g.restore();
     }
     doc.page.y = top + 24 + rows * 118;
     m += 1; if (m === 13) { m = 1; y += 1; }
@@ -1139,12 +1151,12 @@ function viewHistory() {
         const bag = inRange ? dayMap.get(iso) : null;
         const only = ui.personId === "all" ? "" : ui.personId;
         const glyph = cupsGlyph(cupParts(bag, only));
-        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}" title="${esc(inRange ? dayHint(iso) : "")}">${day}${glyph}${inRange ? dayBadges(iso) : ""}</div>`);
+        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}" title="${esc(inRange ? dayHint(iso) : "")}">${dayInner(inRange ? iso : "", day, glyph)}</div>`);
       }
       blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
       m += 1; if (m === 13) { m = 1; y += 1; }
     }
-    calendar = `<p class="muted">До 4 чашек — отдельная чашка цветом того, кто пил, следующая закрывает предыдущую наполовину. С 5 — одна большая чашка с цифрой.</p>` + blocks.join("");
+    calendar = `<p class="muted">До 3 чашек — отдельные значки под датой, следующая закрывает предыдущую наполовину. С 4 — одна чашка с цифрой.</p>` + blocks.join("");
   }
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
     <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
