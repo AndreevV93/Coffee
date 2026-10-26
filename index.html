@@ -54,10 +54,12 @@
   .dot { width: 14px; height: 14px; border-radius: 99px; flex: none; }
   .grid7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
   .dow { text-align: center; font-size: 11px; color: var(--muted); text-transform: uppercase; }
-  .day { border: 1px solid transparent; background: transparent; border-radius: 10px; min-height: 46px; padding: 4px 0; font-size: 13px; }
+  .day { position: relative; border: 1px solid transparent; background: transparent; border-radius: 10px; min-height: 46px; padding: 4px 0; font-size: 13px; }
   .day.off { opacity: 0.35; }
   .day.on { background: var(--primary); color: var(--cream); }
   .day .n { font-size: 10px; }
+  .badges { position: absolute; top: 0; right: 0; display: flex; flex-direction: column; gap: 0; pointer-events: none; }
+  .badge { width: 18px; height: 18px; display: block; filter: drop-shadow(0 1px 0 rgba(255, 246, 232, 0.9)); }
   .day.pict { min-height: 62px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 2px; }
   .cuppile { position: relative; display: block; margin: 0 auto; }
   .cuppile .mini-wrap { position: absolute; top: 0; display: block; }
@@ -65,8 +67,6 @@
   .bigcup { position: relative; display: block; margin: 1px auto 0; }
   .bigcup b { position: absolute; left: 50%; top: 60%; transform: translate(-50%, -50%); margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font-size: 14px; font-weight: 800; line-height: 1; text-align: center; letter-spacing: -0.04em; pointer-events: none; }
   .day.on .bigcup b { color: var(--cream); }
-  .packdot { display: block; width: 4px; height: 4px; border-radius: 99px; background: var(--primary); margin: 1px auto 0; }
-  .day.on .packdot { background: var(--cream); }
   .money-pos { color: var(--credit); }
   .money-neg { color: var(--owed); }
   .sheet { position: fixed; inset: 0; background: rgba(28, 18, 12, 0.45); display: flex; justify-content: center; align-items: flex-end; z-index: 20; }
@@ -96,7 +96,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.30";
+const APP_VERSION = "2026.10.34";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -144,7 +144,7 @@ function colorOf(id) { return (COLORS.find((c) => c[0] === canonColor(id)) || CO
 function personById(id) { return state.people.find((p) => p.id === id); }
 function nameOf(id) { return personById(id)?.name || "Кто-то"; }
 
-function emptyState() { return { people: [], cups: [], restocks: [], openings: [], updatedAt: "1970-01-01T00:00:00.000Z" }; }
+function emptyState() { return { people: [], cups: [], restocks: [], openings: [], notes: [], updatedAt: "1970-01-01T00:00:00.000Z" }; }
 function normalize(raw) {
   const s = raw && typeof raw === "object" ? raw : {};
   const restocks = (Array.isArray(s.restocks) ? s.restocks : []).map((r) => ({
@@ -161,6 +161,7 @@ function normalize(raw) {
     people: (Array.isArray(s.people) ? s.people : []).map((p) => ({ id: p.id || uid(), name: p.name || "Без имени", color: canonColor(p.color), archived: Boolean(p.archived) })),
     cups: (Array.isArray(s.cups) ? s.cups : []).filter((c) => c && c.cups > 0).map((c) => ({ date: c.date, personId: c.personId, cups: Math.max(0, Math.round(Number(c.cups) || 0)) })),
     restocks, openings: openings.map((o) => ({ id: o.id || uid(), date: o.date, packId: o.packId })),
+    notes: (Array.isArray(s.notes) ? s.notes : []).filter((n) => n && n.date && String(n.text || "").trim()).map((n) => ({ date: n.date, text: String(n.text).trim().slice(0, 500) })),
     updatedAt: s.updatedAt || "1970-01-01T00:00:00.000Z",
   };
 }
@@ -410,7 +411,42 @@ function setCups(date, personId, n) {
   if (value > 0) state.cups.push({ date, personId, cups: value });
   touch(); render();
 }
-function ledgerDoc() { return { kofe: 1, appVersion: APP_VERSION, updatedAt: state.updatedAt, people: state.people, cups: state.cups, restocks: state.restocks, openings: state.openings }; }
+function ledgerDoc() { return { kofe: 1, appVersion: APP_VERSION, updatedAt: state.updatedAt, people: state.people, cups: state.cups, restocks: state.restocks, openings: state.openings, notes: state.notes || [] }; }
+function noteOn(date) { const row = (state.notes || []).find((n) => n.date === date); return row ? row.text : ""; }
+function setNote(date, text) {
+  const clean = String(text || "").trim().slice(0, 500);
+  const prev = noteOn(date);
+  if (prev === clean) return;
+  state.notes = (state.notes || []).filter((n) => n.date !== date);
+  if (clean) state.notes.push({ date, text: clean });
+  touch();
+  document.querySelectorAll('.day[data-date="' + date + '"]').forEach((el) => {
+    const old = el.querySelector(".badges");
+    if (old) old.remove();
+    const html = dayBadges(date);
+    if (html) el.insertAdjacentHTML("beforeend", html);
+    el.title = dayHint(date);
+  });
+}
+function packSvg() {
+  return `<svg class="badge pack" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.2 2.2l.7 1.5 1.5.7-1.5.7-.7 1.5-.7-1.5-1.5-.7 1.5-.7z" fill="#e23b2f"/><path d="M6.6 9.4h10.8L16.2 20H7.8L6.6 9.4z" fill="#e7b56a" stroke="#4a2a18" stroke-width="1.4" stroke-linejoin="round"/><ellipse cx="12" cy="9.4" rx="5.4" ry="1.8" fill="#3b2418" stroke="#4a2a18" stroke-width="1.3"/><ellipse cx="12" cy="14.6" rx="1.7" ry="2.3" fill="#4a2a18"/><path d="M12 12.8c.5.8.5 1.6 0 2.4" fill="none" stroke="#f3d7a2" stroke-width="1" stroke-linecap="round"/></svg>`;
+}
+function noteSvg() {
+  return `<svg class="badge note" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h7.2l3.8 3.8v11.2h-11z" fill="#fffaf3" stroke="#4a2a18" stroke-width="1.5" stroke-linejoin="round"/><path d="M13.5 4.5v4h4" fill="none" stroke="#4a2a18" stroke-width="1.5"/><path d="M9 12.6h6.2M9 15.6h4" stroke="#c47a3a" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+}
+function dayBadges(iso) {
+  const opens = state.openings.some((o) => o.date === iso);
+  const note = noteOn(iso);
+  if (!opens && !note) return "";
+  return `<span class="badges">${opens ? packSvg() : ""}${note ? noteSvg() : ""}</span>`;
+}
+function dayHint(iso) {
+  const bits = [];
+  if (state.openings.some((o) => o.date === iso)) bits.push("Открыта пачка");
+  const note = noteOn(iso);
+  if (note) bits.push(note);
+  return bits.join(" · ");
+}
 function applyDoc(doc) { pulling = true; state = normalize(doc); saveLocal(); pulling = false; render(); }
 
 function bytesToB64(bytes) { let s = ""; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); }
@@ -493,6 +529,8 @@ function capture() {
   if (hf) { ui.from = hf.value; ui.to = document.getElementById("hist-to").value; }
   const est = document.getElementById("estimate");
   if (est) ui.estimate = est.value;
+  const note = document.getElementById("day-note");
+  if (note) setNote(note.dataset.date || ui.selected, note.value);
   const hp = document.getElementById("hist-price");
   if (hp) ui.histPrice = hp.value;
 }
@@ -519,7 +557,7 @@ function readRestock(form, draft) {
   draft.deposits = [...form.querySelectorAll("[data-dep]")].map((el) => ({ personId: el.dataset.dep, amountKopecks: parseMoney(el.value) })).filter((d) => d.amountKopecks > 0);
 }
 function blankPack() { const prev = lastPackDefaults(); return { id: uid(), name: prev?.name || "", priceKopecks: prev?.priceKopecks || 0, massGrams: prev?.massGrams || 250 }; }
-function blankExtra() { return { id: uid(), name: "", priceKopecks: 0, from: "", to: "" }; }
+function blankExtra() { return { id: uid(), name: "", priceKopecks: 0, from: "", to: todayISO() }; }
 function openRestock(existing) {
   if (existing) ui.restockDraft = JSON.parse(JSON.stringify(existing));
   else ui.restockDraft = { id: null, date: todayISO(), buyerId: (state.people.find((p) => !p.archived) || state.people[0] || {}).id || "", packs: [blankPack()], extras: [], periodsCovered: 1, splitMode: "pooled", note: "", deposits: [] };
@@ -577,6 +615,27 @@ function cupsGlyph(parts) {
   const width = size + step * (n - 1);
   const html = parts.map((color, i) => `<span class="mini-wrap" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1};color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
   return `<span class="cuppile" style="width:${width.toFixed(1)}px;height:${size}px" title="${n}">${html}</span>`;
+}
+function strokeCup(g, color) {
+  const body = new Path2D("M5.8 8.6h10.4v5.1a4.2 4.2 0 0 1-4.2 4.2h-2a4.2 4.2 0 0 1-4.2-4.2V8.6z");
+  const coffee = new Path2D("M7.8 11.3h6.4v1.2a2.2 2.2 0 0 1-2.2 2.2h-2a2.2 2.2 0 0 1-2.2-2.2v-1.2z");
+  const handle = new Path2D("M16.2 9.6h2.1a1.8 1.8 0 0 1 0 3.6h-2.1");
+  const steam = new Path2D("M8.6 4.8c.5 1 .35 1.5 0 2.2M12 4.8c.5 1 .35 1.5 0 2.2");
+  g.lineJoin = "round";
+  g.lineCap = "round";
+  g.lineWidth = 1.7;
+  g.fillStyle = "#fff6e8";
+  g.strokeStyle = color || "#4a2a18";
+  g.fill(body);
+  g.stroke(body);
+  g.fillStyle = color || "#4a2a18";
+  g.globalAlpha = 0.5;
+  g.fill(coffee);
+  g.globalAlpha = 1;
+  g.fillStyle = "#fff6e8";
+  g.fill(handle);
+  g.stroke(handle);
+  g.stroke(steam);
 }
 function strokeCountCup(g, color) {
   const body = new Path2D("M3.6 8h16.8M4.5 8v5.1a7.5 7.5 0 0 0 15 0V8");
@@ -666,12 +725,16 @@ function viewCups() {
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); cells.push(d); }
   const today = todayISO(); const active = state.people.filter((p) => !p.archived); const dayOpen = state.openings.filter((o) => o.date === ui.selected);
   return `<h2>Чашки</h2><p class="sub">Месяц и открытия пачек</p><div class="row" style="margin-bottom:10px"><button class="btn-ghost sm" type="button" data-act="month" data-d="-1">←</button><button class="btn-ghost grow" type="button" data-act="today">${MONTHS[m-1]} ${y}</button><button class="btn-ghost sm" type="button" data-act="month" data-d="1">→</button></div>
-    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const bag = new Map(); for (const c of state.cups) if (c.date === iso && c.cups > 0) bag.set(c.personId, (bag.get(c.personId) || 0) + c.cups); const glyph = cupsGlyph(cupParts(bag)); const opens = state.openings.some((o) => o.date === iso); const pack = opens ? (glyph ? `<i class="packdot"></i>` : `<div class="n">пач</div>`) : ""; return `<button type="button" class="day ${glyph ? "pict" : ""} ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}">${d.getDate()}${glyph}${pack}</button>`; }).join("")}</div></div>
+    <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const bag = new Map(); for (const c of state.cups) if (c.date === iso && c.cups > 0) bag.set(c.personId, (bag.get(c.personId) || 0) + c.cups); const glyph = cupsGlyph(cupParts(bag)); const hint = dayHint(iso); return `<button type="button" class="day ${glyph ? "pict" : ""} ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}" title="${esc(hint)}">${d.getDate()}${glyph}${dayBadges(iso)}</button>`; }).join("")}</div></div>
+    <p class="muted">Открытый мешок с искрой — в этот день открыли пачку. Листок — на дне есть заметка.</p>
     <h3>${formatDay(ui.selected)}${ui.selected === today ? " · сегодня" : ""}</h3>
     ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}</div>`).join("")}
     <h3>Открытые пачки в этот день</h3>
     ${dayOpen.length ? dayOpen.map((o) => { const found = findPack(o.packId); const title = found ? found.pack.name + " · " + money(found.pack.priceKopecks) + " · " + formatMass(found.pack.massGrams) : "Пачка удалена"; return `<div class="card row"><span class="grow">${esc(title)}</span><button class="btn-ghost sm" type="button" data-act="del-open" data-id="${o.id}">Убрать</button></div>`; }).join("") : `<div class="card muted">В этот день пачку не открывали.</div>`}
-    <button class="btn" type="button" data-act="open-pack">Открыть пачку</button>`;
+    <button class="btn" type="button" data-act="open-pack">Открыть пачку</button>
+    <h3>Заметка</h3>
+    <textarea class="field" id="day-note" data-date="${esc(ui.selected)}" rows="3" placeholder="Что было в этот день">${esc(noteOn(ui.selected))}</textarea>
+    <p class="help">Пишется на любой день. На деньги не влияет и уезжает вместе с остальными данными.</p>`;
 }
 function historySelection() {
   const periods = historyPeriods();
@@ -781,6 +844,64 @@ function drawStatPdf(doc, sel, personId, priceInfo) {
   });
   pdfGap(doc, 16);
 }
+function drawBag(g, x, y, s) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s / 24, s / 24);
+  g.lineJoin = "round";
+  g.lineCap = "round";
+  g.fillStyle = "#e23b2f";
+  const spark = new Path2D("M17.2 2.2l.7 1.5 1.5.7-1.5.7-.7 1.5-.7-1.5-1.5-.7 1.5-.7z");
+  g.fill(spark);
+  g.strokeStyle = "#4a2a18";
+  g.lineWidth = 1.4;
+  g.fillStyle = "#e7b56a";
+  const bag = new Path2D("M6.6 9.4h10.8L16.2 20H7.8L6.6 9.4z");
+  g.fill(bag);
+  g.stroke(bag);
+  g.fillStyle = "#3b2418";
+  g.beginPath();
+  g.ellipse(12, 9.4, 5.4, 1.8, 0, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.fillStyle = "#4a2a18";
+  g.beginPath();
+  g.ellipse(12, 14.6, 1.7, 2.3, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "#f3d7a2";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(12, 12.8);
+  g.bezierCurveTo(12.5, 13.6, 12.5, 14.4, 12, 15.2);
+  g.stroke();
+  g.restore();
+}
+function drawSlip(g, x, y, s) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s / 24, s / 24);
+  g.lineJoin = "round";
+  g.lineWidth = 1.5;
+  g.strokeStyle = "#4a2a18";
+  g.fillStyle = "#fffaf3";
+  const paper = new Path2D("M6.5 4.5h7.2l3.8 3.8v11.2h-11z");
+  g.fill(paper);
+  g.stroke(paper);
+  g.beginPath();
+  g.moveTo(13.5, 4.5);
+  g.lineTo(13.5, 8.5);
+  g.lineTo(17.5, 8.5);
+  g.stroke();
+  g.strokeStyle = "#c47a3a";
+  g.lineCap = "round";
+  g.beginPath();
+  g.moveTo(9, 12.6);
+  g.lineTo(15.2, 12.6);
+  g.moveTo(9, 15.6);
+  g.lineTo(13, 15.6);
+  g.stroke();
+  g.restore();
+}
 function drawCalPdf(doc, sel, personId) {
   if (!sel.start || !sel.end) return;
   const days = cupsByDay(sel.start, sel.end);
@@ -815,7 +936,9 @@ function drawCalPdf(doc, sel, personId) {
       pdfFont(g, 22, true); g.fillText(String(day), x + 14, yy + 28);
       if (!inRange) continue;
       const bag = days.get(iso);
-      if (inRange) drawDayMarks(g, x + 6, yy + 32, cupParts(bag, personId || ""), cw - 16, 68);
+      if (inRange) drawDayMarks(g, x + 6, yy + 36, cupParts(bag, personId || ""), cw - 16, 64);
+      if (inRange && state.openings.some((o) => o.date === iso)) drawBag(g, x + cw - 28, yy + 8, 18);
+      if (inRange && noteOn(iso)) drawSlip(g, x + cw - (state.openings.some((o) => o.date === iso) ? 48 : 28), yy + 8, 18);
     }
     doc.page.y = top + 24 + rows * 118;
     m += 1; if (m === 13) { m = 1; y += 1; }
@@ -1016,7 +1139,7 @@ function viewHistory() {
         const bag = inRange ? dayMap.get(iso) : null;
         const only = ui.personId === "all" ? "" : ui.personId;
         const glyph = cupsGlyph(cupParts(bag, only));
-        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}">${day}${glyph}</div>`);
+        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}" title="${esc(inRange ? dayHint(iso) : "")}">${day}${glyph}${inRange ? dayBadges(iso) : ""}</div>`);
       }
       blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
       m += 1; if (m === 13) { m = 1; y += 1; }
@@ -1146,6 +1269,10 @@ function saveAppFile() {
     toast("Если файла нет в Загрузках, выберите «Сохранить в файлы»");
   })();
 }
+app.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.id === "day-note") setNote(t.dataset.date, t.value);
+});
 app.addEventListener("click", (e) => {
   capture();
   const tabBtn = e.target.closest("[data-tab]");
