@@ -92,13 +92,40 @@
   .menu-pop .card { box-shadow: 0 10px 28px rgba(28, 18, 12, 0.28); max-height: 46dvh; overflow: auto; margin: 0; }
   .menu-pop button { display: flex; width: 100%; text-align: left; background: transparent; border: 0; border-top: 1px solid var(--line); padding: 12px 2px; align-items: center; gap: 8px; }
   .pdf-page { width: 100%; display: block; background: #fff; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    #app { max-width: 1180px; display: grid; grid-template-columns: 210px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    header { grid-column: 2; grid-row: 1; padding: 16px 28px; }
+    nav { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 4px; padding: 16px 10px; }
+    nav button { flex-direction: row; justify-content: flex-start; gap: 10px; min-height: 46px; font-size: 15px; border-radius: 12px; padding: 8px 12px; }
+    nav button:hover { background: rgba(248, 234, 212, 0.12); }
+    nav button.on:hover { background: var(--cream); }
+    main { grid-column: 2; grid-row: 2; padding: 22px 28px 36px; }
+    h2 { font-size: 2rem; }
+    .desk { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr); gap: 18px; align-items: start; }
+    .desk > section > h3:first-child { margin-top: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; align-items: start; }
+    .cards > .card { margin-bottom: 0; }
+    .filters { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr); gap: 8px 20px; align-items: start; }
+    .grid7 { gap: 8px; }
+    .day { min-height: 84px; border-radius: 12px; font-size: 14px; padding: 6px; }
+    .day.pict { min-height: 104px; }
+    .dayhead { height: 20px; }
+    .dnum { font-size: 15px; }
+    .badge { width: 16px; height: 16px; }
+    .marks { min-height: 40px; }
+    .sheet { align-items: center; }
+    .sheet .panel { width: min(720px, calc(100% - 48px)); max-height: min(86dvh, 860px); border-radius: 18px; }
+    .menu-pop { top: 50%; bottom: auto; left: calc(50% + 105px); transform: translate(-50%, -50%); width: 360px; }
+    .toast { bottom: 28px; }
+    .btn:hover { filter: brightness(1.12); }
+  }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.35";
+const APP_VERSION = "2026.10.37";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -612,11 +639,14 @@ function cupParts(bag, onlyId) {
 function cupsGlyph(parts) {
   const n = parts.length;
   if (!n) return "";
+  const wide = window.matchMedia("(min-width: 760px)").matches;
   if (n >= 4) {
     const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
-    return `<span class="bigcup" style="width:30px;height:30px;color:${color}" title="${n}">${countCupSvg()}<b style="font-size:${n >= 10 ? 10 : 13}px">${n}</b></span>`;
+    const box = wide ? 52 : 30;
+    const font = wide ? (n >= 10 ? 16 : 22) : (n >= 10 ? 10 : 13);
+    return `<span class="bigcup" style="width:${box}px;height:${box}px;color:${color}" title="${n}">${countCupSvg()}<b style="font-size:${font}px">${n}</b></span>`;
   }
-  const size = n === 1 ? 22 : n === 2 ? 16 : 14;
+  const size = wide ? (n === 1 ? 36 : n === 2 ? 28 : 24) : (n === 1 ? 22 : n === 2 ? 16 : 14);
   const step = size * 0.5;
   const width = size + step * (n - 1);
   const html = parts.map((color, i) => `<span class="mini-wrap" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1};color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
@@ -720,19 +750,22 @@ function viewBalance() {
   const last = sortRestocks(state.restocks).at(-1);
   if (ui.estimate == null) ui.estimate = last ? rub(coffeeKopecks(last)) : "";
   const est = parseMoney(ui.estimate) ? allocate(parseMoney(ui.estimate), open.map) : [];
-  return `<h2>Сегодня</h2><p class="sub">${formatDay(today)}</p>`
+  return `<h2>Сегодня</h2><p class="sub">${formatDay(today)}</p><div class="desk"><section>`
     + (active.length ? active.map((p) => `<div class="card row">${personLine(p)}${stepper(today, p)}</div>`).join("") : `<div class="card muted">Добавьте участников в «Настройках».</div>`)
-    + `<h3>Кто кому должен</h3>` + (rows.length ? rows.map((b) => `<div class="card split"><span>${esc(b.person.name)}</span><b class="${b.net < 0 ? "money-neg" : b.net > 0 ? "money-pos" : ""}">${moneySigned(b.net)}</b></div>`).join("") : `<div class="card muted">Пока нет расчётов.</div>`)
+    + `</section><section><h3>Кто кому должен</h3>` + (rows.length ? rows.map((b) => `<div class="card split"><span>${esc(b.person.name)}</span><b class="${b.net < 0 ? "money-neg" : b.net > 0 ? "money-pos" : ""}">${moneySigned(b.net)}</b></div>`).join("") : `<div class="card muted">Пока нет расчётов.</div>`)
     + (moves.length ? `<h3>Переводы</h3>` + moves.map((t) => `<div class="card">${esc(nameOf(t.from))} → ${esc(nameOf(t.to))} <b>${money(t.amount)}</b></div>`).join("") : "")
-    + `<h3>Текущий период</h3><div class="card"><div class="muted">${formatDayShort(open.start)} — сегодня · ${cupsWord(open.total)}</div><label class="lbl">Прикинуть цену следующей пачки, ₽</label><input class="field" id="estimate" value="${esc(ui.estimate || "")}" inputmode="decimal" />${est.map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><span>${money(s.shareKopecks)}</span></div>`).join("")}</div>`;
+    + `<h3>Текущий период</h3><div class="card"><div class="muted">${formatDayShort(open.start)} — сегодня · ${cupsWord(open.total)}</div><label class="lbl">Прикинуть цену следующей пачки, ₽</label><input class="field" id="estimate" value="${esc(ui.estimate || "")}" inputmode="decimal" />${est.map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><span>${money(s.shareKopecks)}</span></div>`).join("")}</div></section></div>`;
 }
 function viewCups() {
   const [y, m] = ui.month.split("-").map(Number); const first = new Date(y, m - 1, 1); const lead = (first.getDay() + 6) % 7; const start = new Date(y, m - 1, 1 - lead); const cells = [];
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); cells.push(d); }
   const today = todayISO(); const active = state.people.filter((p) => !p.archived); const dayOpen = state.openings.filter((o) => o.date === ui.selected);
-  return `<h2>Чашки</h2><p class="sub">Месяц и открытия пачек</p><div class="row" style="margin-bottom:10px"><button class="btn-ghost sm" type="button" data-act="month" data-d="-1">←</button><button class="btn-ghost grow" type="button" data-act="today">${MONTHS[m-1]} ${y}</button><button class="btn-ghost sm" type="button" data-act="month" data-d="1">→</button></div>
+  return `<h2>Чашки</h2><p class="sub">Месяц и открытия пачек</p>
+    <div class="desk"><section>
+    <div class="row" style="margin-bottom:10px"><button class="btn-ghost sm" type="button" data-act="month" data-d="-1">←</button><button class="btn-ghost grow" type="button" data-act="today">${MONTHS[m-1]} ${y}</button><button class="btn-ghost sm" type="button" data-act="month" data-d="1">→</button></div>
     <div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.map((d) => { const iso = todayISO(d); const bag = new Map(); for (const c of state.cups) if (c.date === iso && c.cups > 0) bag.set(c.personId, (bag.get(c.personId) || 0) + c.cups); const glyph = cupsGlyph(cupParts(bag)); const hint = dayHint(iso); return `<button type="button" class="day ${glyph ? "pict" : ""} ${d.getMonth() === m - 1 ? "" : "off"} ${iso === ui.selected ? "on" : ""}" data-act="day" data-date="${iso}" title="${esc(hint)}">${dayInner(iso, d.getDate(), glyph)}</button>`; }).join("")}</div></div>
     <p class="muted">До 3 чашек — отдельные значки под датой. С 4 — одна чашка с цифрой. Мешок — открыли пачку, листок — заметка.</p>
+    </section><section>
     <h3>${formatDay(ui.selected)}${ui.selected === today ? " · сегодня" : ""}</h3>
     ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}</div>`).join("")}
     <h3>Открытые пачки в этот день</h3>
@@ -740,7 +773,8 @@ function viewCups() {
     <button class="btn" type="button" data-act="open-pack">Открыть пачку</button>
     <h3>Заметка</h3>
     <textarea class="field" id="day-note" data-date="${esc(ui.selected)}" rows="3" placeholder="Что было в этот день">${esc(noteOn(ui.selected))}</textarea>
-    <p class="help">Пишется на любой день. На деньги не влияет и уезжает вместе с остальными данными.</p>`;
+    <p class="help">Пишется на любой день. На деньги не влияет и уезжает вместе с остальными данными.</p>
+    </section></div>`;
 }
 function historySelection() {
   const periods = historyPeriods();
@@ -1159,11 +1193,13 @@ function viewHistory() {
     calendar = `<p class="muted">До 3 чашек — отдельные значки под датой, следующая закрывает предыдущую наполовину. С 4 — одна чашка с цифрой.</p>` + blocks.join("");
   }
   return `<h2>История</h2><p class="sub">Чашки за отчётный период или за любые даты</p>
-    <label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
-    ${custom ? `<div class="row" style="margin-top:8px"><input class="field" id="hist-from" type="date" value="${esc(ui.from)}"><input class="field" id="hist-to" type="date" value="${esc(ui.to)}"></div><button class="btn sm" style="margin-top:8px" type="button" data-act="hist-apply">Показать</button>` : ""}
-    <label class="lbl">Кто</label><select class="field" id="who"><option value="all" ${ui.personId === "all" ? "selected" : ""}>Все</option>${state.people.map((p) => `<option value="${p.id}" ${ui.personId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+    <div class="filters">
+    <div><label class="lbl">Период</label><select class="field" id="period">${periods.map((p) => `<option value="${p.id}" ${p.id === ui.periodId ? "selected" : ""}>${esc(p.label)} · ${formatDayShort(p.start)}–${formatDayShort(addDays(p.end, -1))}${p.current ? " · сейчас" : ""}</option>`).join("")}<option value="custom" ${custom ? "selected" : ""}>Свой диапазон</option></select>
+    ${custom ? `<div class="row" style="margin-top:8px"><input class="field" id="hist-from" type="date" value="${esc(ui.from)}"><input class="field" id="hist-to" type="date" value="${esc(ui.to)}"></div><button class="btn sm" style="margin-top:8px" type="button" data-act="hist-apply">Показать</button>` : ""}</div>
+    <div><label class="lbl">Кто</label><select class="field" id="who"><option value="all" ${ui.personId === "all" ? "selected" : ""}>Все</option>${state.people.map((p) => `<option value="${p.id}" ${ui.personId === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
     <div class="row" style="margin-top:10px"><button class="${ui.histMode === "short" ? "btn" : "btn-ghost"} sm" type="button" data-act="hist-mode" data-mode="short">Сжатая</button><button class="${ui.histMode === "full" ? "btn" : "btn-ghost"} sm" type="button" data-act="hist-mode" data-mode="full">С календарём</button></div>
-    <label class="lbl">Цена для расчёта, ₽</label><input class="field" id="hist-price" inputmode="decimal" placeholder="${priceInfo.kopecks ? esc(rub(priceInfo.kopecks)) : "0"}" value="${esc(ui.histPrice || "")}" />
+    <label class="lbl">Цена для расчёта, ₽</label><input class="field" id="hist-price" inputmode="decimal" placeholder="${priceInfo.kopecks ? esc(rub(priceInfo.kopecks)) : "0"}" value="${esc(ui.histPrice || "")}" /></div>
+    </div>
     <p class="muted">Сейчас ${money(priceInfo.kopecks)} · ${esc(priceInfo.source)}. Пустое поле берёт цену пачки.</p>
     <div class="card" style="margin-top:12px"><b>${one ? formatCups(one.cups) + " из " + formatCups(block.grand) : cupsWord(block.grand)}</b><div class="muted">${start ? formatDayShort(start) + " — " + formatDayShort(addDays(end, -1)) : "Нет периода. Откройте пачку в календаре."}</div></div>
     ${calcRows}
@@ -1177,10 +1213,10 @@ function viewHistory() {
 function viewRestocks() {
   const list = sortRestocks(state.restocks).slice().reverse();
   if (!list.length) return `<h2>Закупки</h2><p class="sub">Пачки с ценой и массой</p><div class="card muted">Пока пусто.</div><button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
-  return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p>` + bankRun(state.restocks).steps.slice().reverse().map((s) => {
+  return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p><div class="cards">` + bankRun(state.restocks).steps.slice().reverse().map((s) => {
     const r = s.restock;
     return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.lines.filter((x) => x.shareKopecks || x.cups || x.carriedIn || x.deposit).map((x) => { const cups = s.lines.reduce((n, l) => n + (l.cups || 0), 0); const shown = (x.carriedIn || x.deposit || x.extraKopecks) ? checkExplain(x, cups, s.coffee != null ? s.coffee : s.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("") : ""; return `<div class="split" style="margin-top:8px"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.unpaid || 0)}</span></div>${shown}`; }).join("")}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
-  }).join("") + `<button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
+  }).join("") + `</div><button class="btn" type="button" data-act="add-restock" style="margin-top:12px">Добавить закупку</button>`;
 }
 function viewBank() {
   const rows = bankBalances().sort((a, b) => b.left - a.left);
@@ -1198,14 +1234,14 @@ function viewBank() {
   }).join("");
   return `<h2>Банк</h2><p class="sub">Остаток каждого. Если человек внёс больше своей доли, лишнее ждёт следующую закупку.</p>
     <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
-    ${rows.length ? rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("") : `<div class="card muted">Добавьте участников в настройках.</div>`}
+    ${rows.length ? `<div class="cards">${rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("")}</div>` : `<div class="card muted">Добавьте участников в настройках.</div>`}
     <h3>Чеки закупок</h3>
     <p class="help">К оплате = доля кофе плюс допрасходы по чашкам за их даты, минус банк и то, что человек внёс сейчас.</p>
-    ${steps.length ? `<button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button>` + checks : `<div class="card muted">Чек появится после закупки.</div>`}`;
+    ${steps.length ? `<button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button><div class="cards" style="margin-top:10px">${checks}</div>` : `<div class="card muted">Чек появится после закупки.</div>`}`;
 }
 function viewSettings() {
   const people = state.people.map((p) => `<div class="card" style="${p.archived ? "opacity:.6" : ""}"><div class="row"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><input class="field" data-person="${p.id}" value="${esc(p.name)}" aria-label="Имя" /><button class="btn-ghost sm" type="button" data-act="del-person" data-id="${p.id}">✕</button></div><div class="swatches">${COLORS.map(([id, hex, label]) => `<button type="button" title="${label}" data-act="color" data-id="${p.id}" data-color="${id}" class="${p.color === id ? "on" : ""}" style="background:${hex}"></button>`).join("")}</div><label class="row" style="margin-top:8px;font-size:14px"><input type="checkbox" data-act="archive" data-id="${p.id}" ${p.archived ? "checked" : ""}/> Не пьёт сейчас</label></div>`).join("");
-  const peopleBody = `<form id="add-person" class="row" style="margin-bottom:10px"><input class="field" name="name" placeholder="Имя" aria-label="Имя нового участника" /><button class="btn" type="submit">Добавить</button></form>${people || `<div class="card muted">Пока никого нет.</div>`}`;
+  const peopleBody = `<form id="add-person" class="row" style="margin-bottom:10px"><input class="field" name="name" placeholder="Имя" aria-label="Имя нового участника" /><button class="btn" type="submit">Добавить</button></form>${people ? `<div class="cards">${people}</div>` : `<div class="card muted">Пока никого нет.</div>`}`;
   const syncBody = `<p class="help">Ключ и пароль остаются в этом браузере. В облаке только чашки, люди, закупки и банк.</p>
       <label class="lbl">Мастер-ключ</label><input class="field" id="masterKey" type="password" autocomplete="off" value="${esc(sync.masterKey)}" />
       <label class="lbl">ID копилки</label><input class="field" id="binId" autocomplete="off" value="${esc(sync.binId)}" placeholder="создастся кнопкой ниже" />
@@ -1428,6 +1464,8 @@ app.addEventListener("keydown", (e) => {
   }
 });
 render();
+const wideMq = window.matchMedia("(min-width: 760px)");
+if (wideMq.addEventListener) wideMq.addEventListener("change", () => render(true));
 bootSync();
 </script>
 </body>
