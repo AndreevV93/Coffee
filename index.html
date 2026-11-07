@@ -130,7 +130,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.38";
+const APP_VERSION = "2026.10.39";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -148,7 +148,7 @@ const TABS = [["balance","Касса","cash"],["cups","Чашки","cup"],["hist
 const app = document.getElementById("app");
 let state = loadState();
 let sync = loadSync();
-let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, histMode: "short", histPrice: "", pdfMenu: false, checkMenu: "", pdfPreview: false, sections: { people: true, sync: false, data: false } };
+let ui = { tab: loadTab(), month: todayISO().slice(0, 7), selected: todayISO(), sheet: null, restockDraft: null, openingDraft: null, periodId: "", personId: "all", from: "", to: "", estimate: null, histMode: "short", histPrice: "", pdfMenu: false, checkMenu: "", checkCal: false, pdfPreview: false, sections: { people: true, sync: false, data: false } };
 let pdfDraft = null;
 let toastTimer = 0, syncTimer = 0, pulling = false;
 
@@ -746,7 +746,9 @@ function pdfPersonMenu() {
 }
 function checkPersonMenu() {
   const people = state.people.filter((p) => !p.archived);
-  return `<div class="menu-pop" id="check-menu"><div class="card"><b>Кому сделать чек</b><p class="muted">Имя — только суммы. «Календарь» — суммы и дни периода.</p>${people.length ? people.map((p) => `<div class="split"><button type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span>${esc(p.name)}</span></button><button class="btn-ghost sm" type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}" data-cal="1">Календарь</button></div>`).join("") : `<p class="muted">Сначала добавьте участников</p>`}</div></div>`;
+  const cal = ui.checkCal ? "1" : "";
+  const title = ui.checkCal ? "Чек человеку с календарём" : "Кому сделать чек";
+  return `<div class="menu-pop" id="check-menu"><div class="card"><b>${title}</b><p class="muted">${ui.checkCal ? "В PDF будут суммы и календарь дней этого периода." : "В PDF будут только суммы."}</p>${people.length ? people.map((p) => `<button type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}" data-cal="${cal}"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span>${esc(p.name)}</span></button>`).join("") : `<p class="muted">Сначала добавьте участников</p>`}</div></div>`;
 }
 function pdfPreviewSheet() {
   if (!pdfDraft) return "";
@@ -1260,7 +1262,7 @@ function viewBank() {
       const rows = checkExplain(l, totalCups, step.coffee != null ? step.coffee : step.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("");
       return `<div class="card" style="margin-bottom:8px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.unpaid || 0)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div>${rows}</div>`;
     }).join("");
-    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек всем</button><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}" data-cal="1">С календарём</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}">Чек человеку</button></div></div>`;
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек всем</button><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}" data-cal="1">С календарём</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}">Чек человеку</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}" data-cal="1">Чек человеку с календарём</button></div></div>`;
   }).join("");
   return `<h2>Банк</h2><p class="sub">Остаток каждого. Если человек внёс больше своей доли, лишнее ждёт следующую закупку.</p>
     <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
@@ -1356,13 +1358,14 @@ app.addEventListener("input", (e) => {
 app.addEventListener("click", (e) => {
   capture();
   const tabBtn = e.target.closest("[data-tab]");
-  if (tabBtn) { ui.tab = tabBtn.dataset.tab; ui.pdfMenu = false; ui.checkMenu = ""; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(true); return; }
+  if (tabBtn) { ui.tab = tabBtn.dataset.tab; ui.pdfMenu = false; ui.checkMenu = ""; ui.checkCal = false; sessionStorage.setItem("kofe-kassa-tab", ui.tab); render(true); return; }
   if (ui.pdfMenu && !e.target.closest("#pdf-menu") && !e.target.closest("[data-scope='one']")) {
     ui.pdfMenu = false;
     if (!e.target.closest("[data-act]")) { render(); return; }
   }
   if (ui.checkMenu && !e.target.closest("#check-menu") && !e.target.closest("[data-act='check-menu']")) {
     ui.checkMenu = "";
+    ui.checkCal = false;
     if (!e.target.closest("[data-act]")) { render(); return; }
   }
   const el = e.target.closest("[data-act]"); if (!el) return;
@@ -1428,7 +1431,15 @@ app.addEventListener("click", (e) => {
     return;
   }
   if (act === "pdf-check") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "", "", el.dataset.cal === "1").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
-  if (act === "check-menu") { ui.pdfMenu = false; ui.checkMenu = ui.checkMenu === el.dataset.id ? "" : el.dataset.id; render(); return; }
+  if (act === "check-menu") {
+    ui.pdfMenu = false;
+    const cal = el.dataset.cal === "1";
+    const same = ui.checkMenu === el.dataset.id && ui.checkCal === cal;
+    ui.checkMenu = same ? "" : el.dataset.id;
+    ui.checkCal = same ? false : cal;
+    render();
+    return;
+  }
   if (act === "pdf-check-person") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "", el.dataset.person, el.dataset.cal === "1").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
 });
 app.addEventListener("submit", (e) => {
