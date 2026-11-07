@@ -61,9 +61,12 @@
   .dnum { font-size: 12px; line-height: 1; }
   .badges { display: flex; flex-direction: row; gap: 0; flex: none; pointer-events: none; }
   .badge { width: 12px; height: 12px; display: block; }
-  .marks { flex: 1; min-height: 22px; width: 100%; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
-  .day.pict { min-height: 46px; }
-  .cuppile { position: relative; display: block; margin: 0 auto; }
+  .marks { flex: 1; min-height: 20px; max-height: 28px; width: 100%; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; }
+  .day.pict { min-height: 44px; }
+  .cuppile { position: relative; display: block; margin: 0 auto; max-width: 100%; overflow: hidden; }
+  .ratio { font-size: 9px; line-height: 1; color: var(--muted); white-space: nowrap; }
+  .day.on .ratio { color: var(--cream); }
+  .of { font-size: 12px; white-space: nowrap; }
   .cuppile .mini-wrap { position: absolute; top: 0; display: block; }
   .mini-cup { width: 100%; height: 100%; display: block; overflow: visible; }
   .bigcup { position: relative; display: block; margin: 1px auto 0; }
@@ -91,6 +94,7 @@
   .menu-pop { position: fixed; z-index: 25; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 24px), calc(var(--phone) - 24px)); }
   .menu-pop .card { box-shadow: 0 10px 28px rgba(28, 18, 12, 0.28); max-height: 46dvh; overflow: auto; margin: 0; }
   .menu-pop button { display: flex; width: 100%; text-align: left; background: transparent; border: 0; border-top: 1px solid var(--line); padding: 12px 2px; align-items: center; gap: 8px; }
+  .menu-pop .split button { width: auto; border-top: 0; padding: 8px 2px; }
   .pdf-page { width: 100%; display: block; background: #fff; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
   @media (min-width: 760px) {
     #app { max-width: 1180px; display: grid; grid-template-columns: 210px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
@@ -107,12 +111,13 @@
     .cards > .card { margin-bottom: 0; }
     .filters { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr); gap: 8px 20px; align-items: start; }
     .grid7 { gap: 8px; }
-    .day { min-height: 84px; border-radius: 12px; font-size: 14px; padding: 6px; }
-    .day.pict { min-height: 104px; }
-    .dayhead { height: 20px; }
-    .dnum { font-size: 15px; }
-    .badge { width: 16px; height: 16px; }
-    .marks { min-height: 40px; }
+    .day { min-height: 68px; border-radius: 12px; font-size: 14px; padding: 6px; }
+    .day.pict { min-height: 76px; }
+    .dayhead { height: 18px; }
+    .dnum { font-size: 14px; }
+    .badge { width: 14px; height: 14px; }
+    .marks { min-height: 28px; max-height: 40px; }
+    .ratio { font-size: 11px; }
     .sheet { align-items: center; }
     .sheet .panel { width: min(720px, calc(100% - 48px)); max-height: min(86dvh, 860px); border-radius: 18px; }
     .menu-pop { top: 50%; bottom: auto; left: calc(50% + 105px); transform: translate(-50%, -50%); width: 360px; }
@@ -125,7 +130,7 @@
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 <script>
-const APP_VERSION = "2026.10.37";
+const APP_VERSION = "2026.10.38";
 const COLORS = [["red","#e23d3d","красный"],["blue","#2f6bff","синий"],["green","#1f9d55","зелёный"],["orange","#f07300","оранжевый"],["violet","#7a3ff0","фиолетовый"],["teal","#0e9aa7","бирюзовый"],["pink","#e84393","розовый"],["yellow","#e6a100","жёлтый"]];
 const LEGACY_COLOR = { umber: "red", olive: "green", slate: "blue", clay: "orange", pine: "teal", cocoa: "violet", rust: "pink", stone: "yellow" };
 const ICONS = {
@@ -425,6 +430,8 @@ function openPeriod() {
 }
 function nextColor() { const used = new Set(state.people.filter((p) => !p.archived).map((p) => p.color)); return COLORS.find((c) => !used.has(c[0]))?.[0] || COLORS[state.people.length % COLORS.length][0]; }
 function cupsOn(date, personId) { return state.cups.find((c) => c.date === date && c.personId === personId)?.cups || 0; }
+function cupsThatDay(date) { return state.cups.reduce((s, c) => c.date === date ? s + (Number(c.cups) || 0) : s, 0); }
+function cupsOf(n, total) { return formatCups(n) + " из " + formatCups(total); }
 function parseCups(raw) {
   const t = String(raw ?? "").trim().replace(",", ".");
   if (!t) return 0;
@@ -470,8 +477,15 @@ function dayBadges(iso) {
   if (!opens && !note) return "";
   return `<span class="badges">${opens ? packSvg() : ""}${note ? noteSvg() : ""}</span>`;
 }
-function dayInner(iso, dayNum, glyph) {
-  return `<span class="dayhead"><span class="dnum">${dayNum}</span>${iso ? dayBadges(iso) : ""}</span>${glyph ? `<span class="marks">${glyph}</span>` : ""}`;
+function dayInner(iso, dayNum, glyph, ratio) {
+  return `<span class="dayhead"><span class="dnum">${dayNum}</span>${ratio || ""}${iso ? dayBadges(iso) : ""}</span>${glyph ? `<span class="marks">${glyph}</span>` : ""}`;
+}
+function ratioMark(bag, onlyId) {
+  if (!bag || !onlyId) return "";
+  let mine = 0, all = 0;
+  bag.forEach((n, id) => { const v = Number(n) || 0; all += v; if (id === onlyId) mine += v; });
+  if (!all) return "";
+  return `<span class="ratio">${formatCups(mine)}/${formatCups(all)}</span>`;
 }
 function dayHint(iso) {
   const bits = [];
@@ -642,11 +656,11 @@ function cupsGlyph(parts) {
   const wide = window.matchMedia("(min-width: 760px)").matches;
   if (n >= 4) {
     const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
-    const box = wide ? 52 : 30;
-    const font = wide ? (n >= 10 ? 16 : 22) : (n >= 10 ? 10 : 13);
+    const box = wide ? 32 : 24;
+    const font = wide ? (n >= 10 ? 12 : 15) : (n >= 10 ? 9 : 12);
     return `<span class="bigcup" style="width:${box}px;height:${box}px;color:${color}" title="${n}">${countCupSvg()}<b style="font-size:${font}px">${n}</b></span>`;
   }
-  const size = wide ? (n === 1 ? 36 : n === 2 ? 28 : 24) : (n === 1 ? 22 : n === 2 ? 16 : 14);
+  const size = wide ? (n === 1 ? 24 : n === 2 ? 18 : 15) : (n === 1 ? 18 : n === 2 ? 14 : 12);
   const step = size * 0.5;
   const width = size + step * (n - 1);
   const html = parts.map((color, i) => `<span class="mini-wrap" style="left:${(i * step).toFixed(1)}px;z-index:${i + 1};color:${color};width:${size}px;height:${size}px">${cupSvg()}</span>`).join("");
@@ -689,7 +703,7 @@ function drawDayMarks(g, x, y, parts, boxW, boxH) {
   if (!n) return;
   const color = new Set(parts).size === 1 ? parts[0] : "#4a2a18";
   if (n >= 4) {
-    const size = Math.min(boxW, boxH, 78);
+    const size = Math.min(boxW * 0.72, boxH * 0.86, 56);
     const ox = x + (boxW - size) / 2;
     const oy = y + (boxH - size) / 2;
     g.save();
@@ -706,7 +720,7 @@ function drawDayMarks(g, x, y, parts, boxW, boxH) {
     g.textBaseline = "alphabetic";
     return;
   }
-  const size = Math.min(boxH * 0.72, 56);
+  const size = Math.min(boxH * 0.7, boxW / (1 + 0.5 * (n - 1)) * 0.92, 36);
   const step = size * 0.5;
   const total = size + step * (n - 1);
   const start = x + Math.max(0, (boxW - total) / 2);
@@ -732,7 +746,7 @@ function pdfPersonMenu() {
 }
 function checkPersonMenu() {
   const people = state.people.filter((p) => !p.archived);
-  return `<div class="menu-pop" id="check-menu"><div class="card"><b>Кому сделать чек</b>${people.length ? people.map((p) => `<button type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span>${esc(p.name)}</span></button>`).join("") : `<p class="muted">Сначала добавьте участников</p>`}</div></div>`;
+  return `<div class="menu-pop" id="check-menu"><div class="card"><b>Кому сделать чек</b><p class="muted">Имя — только суммы. «Календарь» — суммы и дни периода.</p>${people.length ? people.map((p) => `<div class="split"><button type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><span>${esc(p.name)}</span></button><button class="btn-ghost sm" type="button" data-act="pdf-check-person" data-id="${esc(ui.checkMenu)}" data-person="${p.id}" data-cal="1">Календарь</button></div>`).join("") : `<p class="muted">Сначала добавьте участников</p>`}</div></div>`;
 }
 function pdfPreviewSheet() {
   if (!pdfDraft) return "";
@@ -750,11 +764,12 @@ function viewBalance() {
   const last = sortRestocks(state.restocks).at(-1);
   if (ui.estimate == null) ui.estimate = last ? rub(coffeeKopecks(last)) : "";
   const est = parseMoney(ui.estimate) ? allocate(parseMoney(ui.estimate), open.map) : [];
+  const estTotal = est.reduce((s, x) => s + (x.cups || 0), 0);
   return `<h2>Сегодня</h2><p class="sub">${formatDay(today)}</p><div class="desk"><section>`
-    + (active.length ? active.map((p) => `<div class="card row">${personLine(p)}${stepper(today, p)}</div>`).join("") : `<div class="card muted">Добавьте участников в «Настройках».</div>`)
+    + (active.length ? active.map((p) => `<div class="card row">${personLine(p)}${stepper(today, p)}<span class="muted of">из ${formatCups(cupsThatDay(today))}</span></div>`).join("") : `<div class="card muted">Добавьте участников в «Настройках».</div>`)
     + `</section><section><h3>Кто кому должен</h3>` + (rows.length ? rows.map((b) => `<div class="card split"><span>${esc(b.person.name)}</span><b class="${b.net < 0 ? "money-neg" : b.net > 0 ? "money-pos" : ""}">${moneySigned(b.net)}</b></div>`).join("") : `<div class="card muted">Пока нет расчётов.</div>`)
     + (moves.length ? `<h3>Переводы</h3>` + moves.map((t) => `<div class="card">${esc(nameOf(t.from))} → ${esc(nameOf(t.to))} <b>${money(t.amount)}</b></div>`).join("") : "")
-    + `<h3>Текущий период</h3><div class="card"><div class="muted">${formatDayShort(open.start)} — сегодня · ${cupsWord(open.total)}</div><label class="lbl">Прикинуть цену следующей пачки, ₽</label><input class="field" id="estimate" value="${esc(ui.estimate || "")}" inputmode="decimal" />${est.map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><span>${money(s.shareKopecks)}</span></div>`).join("")}</div></section></div>`;
+    + `<h3>Текущий период</h3><div class="card"><div class="muted">${formatDayShort(open.start)} — сегодня · ${cupsWord(open.total)}</div><label class="lbl">Прикинуть цену следующей пачки, ₽</label><input class="field" id="estimate" value="${esc(ui.estimate || "")}" inputmode="decimal" />${est.map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsOf(s.cups, estTotal)}</span><span>${money(s.shareKopecks)}</span></div>`).join("")}</div></section></div>`;
 }
 function viewCups() {
   const [y, m] = ui.month.split("-").map(Number); const first = new Date(y, m - 1, 1); const lead = (first.getDay() + 6) % 7; const start = new Date(y, m - 1, 1 - lead); const cells = [];
@@ -767,7 +782,7 @@ function viewCups() {
     <p class="muted">До 3 чашек — отдельные значки под датой. С 4 — одна чашка с цифрой. Мешок — открыли пачку, листок — заметка.</p>
     </section><section>
     <h3>${formatDay(ui.selected)}${ui.selected === today ? " · сегодня" : ""}</h3>
-    ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}</div>`).join("")}
+    ${active.map((p) => `<div class="card row">${personLine(p)}${stepper(ui.selected, p)}<span class="muted of">из ${formatCups(cupsThatDay(ui.selected))}</span></div>`).join("")}
     <h3>Открытые пачки в этот день</h3>
     ${dayOpen.length ? dayOpen.map((o) => { const found = findPack(o.packId); const title = found ? found.pack.name + " · " + money(found.pack.priceKopecks) + " · " + formatMass(found.pack.massGrams) : "Пачка удалена"; return `<div class="card row"><span class="grow">${esc(title)}</span><button class="btn-ghost sm" type="button" data-act="del-open" data-id="${o.id}">Убрать</button></div>`; }).join("") : `<div class="card muted">В этот день пачку не открывали.</div>`}
     <button class="btn" type="button" data-act="open-pack">Открыть пачку</button>
@@ -980,7 +995,19 @@ function drawCalPdf(doc, sel, personId) {
       g.rect(x + 4, yy, cw - 8, 108);
       g.clip();
       const bag = days.get(iso);
-      drawDayMarks(g, x + 8, yy + 30, cupParts(bag, personId || ""), cw - 20, 70);
+      const mine = personId ? cupParts(bag, personId) : cupParts(bag, "");
+      drawDayMarks(g, x + 8, yy + 28, mine, cw - 20, personId ? 52 : 62);
+      if (personId && bag) {
+        let own = 0, all = 0;
+        bag.forEach((v, id) => { const n = Number(v) || 0; all += n; if (id === personId) own += n; });
+        if (all) {
+          g.fillStyle = "#7a5640";
+          g.textAlign = "center";
+          pdfFont(g, 15, true);
+          g.fillText(formatCups(own) + "/" + formatCups(all), x + cw / 2, yy + 100);
+          g.textAlign = "left";
+        }
+      }
       let badgeX = x + cw - 24;
       if (noteOn(iso)) { drawSlip(g, badgeX, yy + 6, 16); badgeX -= 16; }
       if (state.openings.some((o) => o.date === iso)) drawBag(g, badgeX, yy + 6, 16);
@@ -1137,13 +1164,16 @@ function drawCheckPdf(doc, step, personId) {
   });
   pdfGap(doc, 28);
 }
-async function buildCheckPdf(id, personId) {
+async function buildCheckPdf(id, personId, withCal) {
   const steps = id ? bankRun(state.restocks).steps.filter((s) => s.restock.id === id) : bankRun(state.restocks).steps;
   if (!steps.length) { toast("Нет закупок"); return; }
   const doc = pdfDoc();
-  steps.forEach((s) => drawCheckPdf(doc, s, personId || ""));
+  steps.forEach((s) => {
+    drawCheckPdf(doc, s, personId || "");
+    if (withCal && s.coverage && s.coverage.start && s.coverage.end) drawCalPdf(doc, { start: s.coverage.start, end: s.coverage.end }, personId || "");
+  });
   const who = personId ? nameOf(personId) : "vse";
-  await finishPdf(doc, pdfName(["kofe-chek", who, steps[0].restock.date]));
+  await finishPdf(doc, pdfName(["kofe-chek", who, withCal ? "kalendar" : "summa", steps[0].restock.date]));
 }
 function viewHistory() {
   const sel = historySelection();
@@ -1185,7 +1215,7 @@ function viewHistory() {
         const bag = inRange ? dayMap.get(iso) : null;
         const only = ui.personId === "all" ? "" : ui.personId;
         const glyph = cupsGlyph(cupParts(bag, only));
-        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}" title="${esc(inRange ? dayHint(iso) : "")}">${dayInner(inRange ? iso : "", day, glyph)}</div>`);
+        cells.push(`<div class="day ${glyph ? "pict" : ""} ${inRange ? "" : "off"}" title="${esc(inRange ? dayHint(iso) : "")}">${dayInner(inRange ? iso : "", day, glyph, only && inRange ? ratioMark(bag, only) : "")}</div>`);
       }
       blocks.push(`<h3>${MONTHS[m - 1]} ${y}</h3><div class="card"><div class="grid7">${DOW.map((d) => `<div class="dow">${d}</div>`).join("")}</div><div class="grid7" style="margin-top:4px">${cells.join("")}</div></div>`);
       m += 1; if (m === 13) { m = 1; y += 1; }
@@ -1208,14 +1238,14 @@ function viewHistory() {
     ${ui.personId === "all" ? `<p class="muted">Выберите человека, чтобы править чашки по дням.</p>` : `<p class="muted">Число можно вписать с клавиатуры. Шаг кнопками — 1 чашка.</p>`}
     ${editDays.map(([date, n]) => ui.personId === "all"
       ? `<div class="split" style="padding:4px 2px"><span class="muted">${formatDayShort(date)}</span><span>${formatCups(n)}</span></div>`
-      : `<div class="card row"><span class="grow">${formatDayShort(date)}</span>${stepper(date, { id: ui.personId })}</div>`).join("")}`;
+      : `<div class="card row"><span class="grow">${formatDayShort(date)} <span class="muted">из ${formatCups(cupsThatDay(date))}</span></span>${stepper(date, { id: ui.personId })}</div>`).join("")}`;
 }
 function viewRestocks() {
   const list = sortRestocks(state.restocks).slice().reverse();
   if (!list.length) return `<h2>Закупки</h2><p class="sub">Пачки с ценой и массой</p><div class="card muted">Пока пусто.</div><button class="btn" type="button" data-act="add-restock">Добавить закупку</button>`;
   return `<h2>Закупки</h2><p class="sub">Цена подтягивается из прошлых пачек с тем же именем</p><div class="cards">` + bankRun(state.restocks).steps.slice().reverse().map((s) => {
     const r = s.restock;
-    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.lines.filter((x) => x.shareKopecks || x.cups || x.carriedIn || x.deposit).map((x) => { const cups = s.lines.reduce((n, l) => n + (l.cups || 0), 0); const shown = (x.carriedIn || x.deposit || x.extraKopecks) ? checkExplain(x, cups, s.coffee != null ? s.coffee : s.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("") : ""; return `<div class="split" style="margin-top:8px"><span>${esc(nameOf(x.personId))} · ${cupsWord(x.cups)}</span><span>${money(x.unpaid || 0)}</span></div>${shown}`; }).join("")}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(s.total)}</span></div><div class="muted" style="margin:6px 0">${esc(nameOf(r.buyerId))} · ${r.periodsCovered} пер.</div><div>${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks) + " · " + formatMass(p.massGrams)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted" style="margin-top:6px">${formatDayShort(s.coverage.start)} — ${formatDayShort(s.coverage.end > s.coverage.start ? addDays(s.coverage.end, -1) : s.coverage.end)}</div>${s.lines.filter((x) => x.shareKopecks || x.cups || x.carriedIn || x.deposit).map((x) => { const cups = s.lines.reduce((n, l) => n + (l.cups || 0), 0); const shown = (x.carriedIn || x.deposit || x.extraKopecks) ? checkExplain(x, cups, s.coffee != null ? s.coffee : s.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("") : ""; return `<div class="split" style="margin-top:8px"><span>${esc(nameOf(x.personId))} · ${cupsOf(x.cups, cups)}</span><span>${money(x.unpaid || 0)}</span></div>${shown}`; }).join("")}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="edit-restock" data-id="${r.id}">Править</button><button class="btn-ghost sm" type="button" data-act="del-restock" data-id="${r.id}">Удалить</button></div></div>`;
   }).join("") + `</div><button class="btn" type="button" data-act="add-restock" style="margin-top:12px">Добавить закупку</button>`;
 }
 function viewBank() {
@@ -1230,14 +1260,14 @@ function viewBank() {
       const rows = checkExplain(l, totalCups, step.coffee != null ? step.coffee : step.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("");
       return `<div class="card" style="margin-bottom:8px"><div class="split"><span>${esc(nameOf(l.personId))}</span><b>${money(l.unpaid || 0)}</b></div><div class="muted">${formatCups(l.cups)} из ${formatCups(totalCups)} чашек</div>${rows}</div>`;
     }).join("");
-    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<div class="row" style="margin-top:8px"><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек всем</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}">Чек человеку</button></div></div>`;
+    return `<div class="card"><div class="split"><b>${formatDay(r.date)}</b><span>${money(step.total)}</span></div><div class="muted" style="margin:6px 0">${r.packs.map((p) => esc(p.name) + " · " + money(p.priceKopecks)).join("<br>")}${(r.extras || []).length ? "<br>" + r.extras.map((e) => esc(extraLabel(e))).join("<br>") : ""}</div><div class="muted">${formatDayShort(step.coverage.start)} — ${formatDayShort(step.coverage.end > step.coverage.start ? addDays(step.coverage.end, -1) : step.coverage.end)} · всего ${cupsWord(totalCups)}</div>${body}<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}">Чек всем</button><button class="btn-ghost sm" type="button" data-act="pdf-check" data-id="${r.id}" data-cal="1">С календарём</button><button class="btn sm" type="button" data-act="check-menu" data-id="${r.id}">Чек человеку</button></div></div>`;
   }).join("");
   return `<h2>Банк</h2><p class="sub">Остаток каждого. Если человек внёс больше своей доли, лишнее ждёт следующую закупку.</p>
     <div class="card split"><span>Всего в остатке</span><b class="${total > 0 ? "money-pos" : ""}">${money(total)}</b></div>
     ${rows.length ? `<div class="cards">${rows.map((r) => `<div class="card"><div class="split">${personLine(r.person)}<b class="${r.left > 0 ? "money-pos" : ""}">${money(r.left)}</b></div><div class="muted">${r.left > 0 ? "Перенесётся на следующую закупку" : "Остатка нет"}</div></div>`).join("")}</div>` : `<div class="card muted">Добавьте участников в настройках.</div>`}
     <h3>Чеки закупок</h3>
     <p class="help">К оплате = доля кофе плюс допрасходы по чашкам за их даты, минус банк и то, что человек внёс сейчас.</p>
-    ${steps.length ? `<button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button><div class="cards" style="margin-top:10px">${checks}</div>` : `<div class="card muted">Чек появится после закупки.</div>`}`;
+    ${steps.length ? `<div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn sm" type="button" data-act="pdf-check">Все чеки PDF</button><button class="btn-ghost sm" type="button" data-act="pdf-check" data-cal="1">Все чеки с календарём</button></div><div class="cards" style="margin-top:10px">${checks}</div>` : `<div class="card muted">Чек появится после закупки.</div>`}`;
 }
 function viewSettings() {
   const people = state.people.map((p) => `<div class="card" style="${p.archived ? "opacity:.6" : ""}"><div class="row"><span class="cupmark" style="color:${colorOf(p.color)}">${ico(ICONS.cup)}</span><input class="field" data-person="${p.id}" value="${esc(p.name)}" aria-label="Имя" /><button class="btn-ghost sm" type="button" data-act="del-person" data-id="${p.id}">✕</button></div><div class="swatches">${COLORS.map(([id, hex, label]) => `<button type="button" title="${label}" data-act="color" data-id="${p.id}" data-color="${id}" class="${p.color === id ? "on" : ""}" style="background:${hex}"></button>`).join("")}</div><label class="row" style="margin-top:8px;font-size:14px"><input type="checkbox" data-act="archive" data-id="${p.id}" ${p.archived ? "checked" : ""}/> Не пьёт сейчас</label></div>`).join("");
@@ -1270,6 +1300,8 @@ function restockSheet() {
   const carry = previewCarry(d);
   const depValue = (id) => { const row = (d.deposits || []).find((x) => x.personId === id); return row && row.amountKopecks ? rub(row.amountKopecks) : ""; };
   const extras = d.extras || [];
+  const shownLines = carry.lines.filter((s) => s.shareKopecks || s.cups || s.deposit || s.carriedIn || s.left);
+  const previewCups = shownLines.reduce((s, x) => s + (x.cups || 0), 0);
   const lineText = (l) => checkExplain(l, live.shares.reduce((n, s) => n + (s.cups || 0), 0), live.coffee != null ? live.coffee : live.total).map((row) => `<div class="${row.kind === "due" ? "" : row.kind === "bank" ? "money-pos" : "muted"}">${esc(row.text)}</div>`).join("");
   const splitHead = live.extra ? `Кофе ${money(live.coffee)} по чашкам, допрасходы ${money(live.extra)} по чашкам` : `Делится ${money(live.total)}`;
   return `<div class="sheet"><div class="panel"><div class="row"><h2 class="grow">${d.id ? "Закупка" : "Новая закупка"}</h2><button class="btn-ghost sm" type="button" data-act="close">Закрыть</button></div>
@@ -1287,7 +1319,7 @@ function restockSheet() {
       <p class="help">Сумма человека, не цена пачки. Если внёс больше своей доли, лишнее перейдёт на следующую закупку.</p>
       ${payers.map((p) => `<label class="lbl">${esc(p.name)}, ₽</label><input class="field" data-dep="${p.id}" inputmode="decimal" placeholder="0" value="${esc(depValue(p.id))}" />`).join("")}
       <label class="lbl">Заметка</label><textarea class="field" name="note">${esc(d.note || "")}</textarea>
-      <div class="card"><div class="muted">${splitHead} · ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${carry.lines.filter((s) => s.shareKopecks || s.cups || s.deposit || s.carriedIn || s.left).map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsWord(s.cups)}</span><b>${money(s.unpaid || 0)}</b></div>${lineText(s)}`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
+      <div class="card"><div class="muted">${splitHead} · ${formatDayShort(live.coverage.start)} — ${formatDayShort(live.coverage.end)}</div>${shownLines.map((s) => `<div class="split" style="margin-top:8px"><span>${esc(nameOf(s.personId))} · ${cupsOf(s.cups, previewCups)}</span><b>${money(s.unpaid || 0)}</b></div>${lineText(s)}`).join("") || `<div class="muted">Нет чашек в периоде — сумма делится поровну.</div>`}</div>
       <button class="btn" type="submit">Сохранить</button></form></div></div>`;
 }
 function openingSheet() {
@@ -1395,9 +1427,9 @@ app.addEventListener("click", (e) => {
     savePdf(draft.blob, draft.filename).then(() => { ui.pdfPreview = false; pdfDraft = null; render(); }).catch((err) => toast(err.message || "Не удалось сохранить"));
     return;
   }
-  if (act === "pdf-check") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "pdf-check") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "", "", el.dataset.cal === "1").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
   if (act === "check-menu") { ui.pdfMenu = false; ui.checkMenu = ui.checkMenu === el.dataset.id ? "" : el.dataset.id; render(); return; }
-  if (act === "pdf-check-person") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "", el.dataset.person).catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
+  if (act === "pdf-check-person") { ui.checkMenu = ""; buildCheckPdf(el.dataset.id || "", el.dataset.person, el.dataset.cal === "1").catch((err) => toast(err.message || "Не удалось сделать PDF")); return; }
 });
 app.addEventListener("submit", (e) => {
   capture();
